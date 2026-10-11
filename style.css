@@ -188,6 +188,70 @@ body,
     display: none;
 }
 
+.direct-message-key-panel {
+    display: grid;
+    flex: 0 0 auto;
+    gap: 6px;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-panel);
+    color: var(--text-primary);
+    font-size: 12px;
+}
+
+.direct-message-key-panel.hidden {
+    display: none;
+}
+
+.direct-message-key-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.direct-message-key-controls input {
+    min-width: 0;
+    flex: 1;
+    padding: 9px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 2px;
+    background: var(--bg-main);
+    color: var(--text-primary);
+    font: inherit;
+}
+
+.direct-message-key-controls button {
+    padding: 8px 12px;
+    border: 1px solid #16baff66;
+    border-radius: 2px;
+    background: #087eae;
+    color: #f3fbff;
+    font: inherit;
+    cursor: pointer;
+}
+
+#forget-direct-message-key {
+    justify-self: start;
+    padding: 3px 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 11px;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+#direct-message-key-status {
+    margin: 0;
+    color: var(--muted);
+}
+
+.direct-message-key-warning {
+    margin: 0;
+    color: var(--muted);
+    font-size: 11px;
+}
+
 .call-button {
     min-height: 34px;
     padding: 0 12px;

@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="logo.png">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#16baff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="/icons/blocktalk.svg">
     <title>BlockTalk - Real-Time Chat Application</title>
     <style>
         * {
@@ -877,6 +882,23 @@
 
             <div class="incoming-call-list" id="incoming-call-list" aria-live="polite"></div>
 
+            <form class="direct-message-key-panel hidden" id="direct-message-key-panel-form">
+                <label for="direct-message-key">Shared conversation passphrase</label>
+                <div class="direct-message-key-controls">
+                    <input id="direct-message-key" type="password" minlength="20" maxlength="256"
+                        autocomplete="off" placeholder="Enter the same unique passphrase on both accounts">
+                    <button type="submit" id="direct-message-key-submit">Unlock chat</button>
+                </div>
+                <p id="direct-message-key-status" role="status" aria-live="polite">
+                    Share a unique passphrase through a separate trusted channel. It is not your account password.
+                </p>
+                <button type="button" id="forget-direct-message-key">Forget saved key on this device</button>
+                <p class="direct-message-key-warning">
+                    A remembered key is stored in this browser's localStorage and does not sync to your other devices.
+                    The public relays can see sender and timestamp metadata.
+                </p>
+            </form>
+
             <!-- MESSAGE LOG -->
             <div class="message-log" id="messageLog">
                 <div class="no-chat-selected">
@@ -940,6 +962,8 @@
             },
             database: { profiles: {}, calls: {} },
             sessionToken: null,
+            directMessageCache: Object.create(null),
+            directMessageReady: false,
 
             apiRequest: async function(endpoint, options = {}) {
                 const headers = { 'Content-Type': 'application/json', ...options.headers };
@@ -961,6 +985,9 @@
                 const profile = this.getUserProfile(this.database, data.currentUser.username);
                 this.state.friends = profile.friends;
                 this.state.messages = profile.messages;
+                Object.entries(this.directMessageCache).forEach(([peer, messages]) => {
+                    this.state.messages[peer] = messages;
+                });
                 this.state.pendingFriendRequests = profile.pendingFriendRequests;
                 this.state.blockedUsers = profile.blockedUsers;
                 this.state.onlineUsers = new Set(profile.onlineUsers || []);
@@ -1192,34 +1219,6 @@
 
             // ===== REAL-TIME CHAT MODULE =====
             chat: {
-                sendMessage: async function(content) {
-                    const recipientUsername = BlockTalk.state.currentConversation;
-                    if (!content.trim() || !recipientUsername) return;
-                    try {
-                        await BlockTalk.apiRequest('/api/messages', {
-                            method: 'POST',
-                            body: JSON.stringify({ username: recipientUsername, content })
-                        });
-                        document.getElementById('messageInput').value = '';
-                        await BlockTalk.refreshAndRender();
-                        BlockTalk.clearTypingIndicator();
-                    } catch (error) {
-                        alert(error.message);
-                    }
-                },
-
-                markAsRead: async function(friendUsername) {
-                    try {
-                        await BlockTalk.apiRequest('/api/messages/read', {
-                            method: 'POST',
-                            body: JSON.stringify({ username: friendUsername })
-                        });
-                        await BlockTalk.refreshAndRender();
-                    } catch (error) {
-                        console.error('Could not mark messages as read:', error);
-                    }
-                },
-
                 handleTyping: function() {
                     // [API CALL] Broadcast typing indicator
                     // POST /api/typing/start
@@ -1400,13 +1399,20 @@
                     this.getUserProfile(database, username).blockedUsers.includes(friendUsername) ||
                     this.getUserProfile(database, friendUsername).blockedUsers.includes(username)) {
                     this.state.currentConversation = null;
+                    this.directMessageReady = false;
+                    window.dispatchEvent(new CustomEvent('blocktalk:conversation-selected', {
+                        detail: { peer: null }
+                    }));
                     this.renderChatArea();
                     return;
                 }
                 this.state.currentConversation = friendUsername;
+                this.directMessageReady = false;
+                window.dispatchEvent(new CustomEvent('blocktalk:conversation-selected', {
+                    detail: { peer: friendUsername }
+                }));
                 this.renderDMList();
                 this.renderChatArea();
-                this.chat.markAsRead(friendUsername);
             },
 
             renderChatArea: function() {
@@ -1415,6 +1421,7 @@
                 const chatSubtitle = document.getElementById('chatSubtitle');
                 const onlineStatus = document.getElementById('onlineStatus');
                 const messageInput = document.getElementById('messageInput');
+                const directMessageKeyPanel = document.getElementById('direct-message-key-panel-form');
 
                 if (this.state.currentConversation) {
                     const database = this.readDatabase();
@@ -1428,6 +1435,7 @@
                 }
 
                 if (!this.state.currentConversation) {
+                    directMessageKeyPanel.classList.add('hidden');
                     messageLog.innerHTML = `
                         <div class="no-chat-selected">
                             <div class="no-chat-icon">💬</div>
@@ -1440,8 +1448,9 @@
                     return;
                 }
 
-                messageInput.disabled = false;
-                document.getElementById('sendBtn').disabled = false;
+                directMessageKeyPanel.classList.remove('hidden');
+                messageInput.disabled = !this.directMessageReady;
+                document.getElementById('sendBtn').disabled = !this.directMessageReady;
                 messageInput.placeholder = `Message @${this.state.currentConversation}...`;
 
                 chatTitle.textContent = `@ ${this.state.currentConversation}`;
@@ -1540,6 +1549,8 @@
                 localStorage.removeItem('blocktalk_session');
                 this.sessionToken = null;
                 this.database = { profiles: {}, calls: {} };
+                this.directMessageCache = Object.create(null);
+                this.directMessageReady = false;
                 this.state = {
                     isAuthenticated: false,
                     currentUser: null,
@@ -1601,14 +1612,39 @@
             // Chat
             document.getElementById('sendBtn').addEventListener('click', () => {
                 const content = document.getElementById('messageInput').value;
-                this.chat.sendMessage(content);
+                //notes Redirect the index.html Send handler to the Gun-backed function in app.js.
+                this.directMessages.sendMessage(content);
             });
 
             document.getElementById('messageInput').addEventListener('keypress', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     const content = e.target.value;
-                    this.chat.sendMessage(content);
+                    //notes Redirect the index.html Enter handler to the Gun-backed function in app.js.
+                    this.directMessages.sendMessage(content);
+                }
+            });
+
+            document.getElementById('direct-message-key-panel-form').addEventListener('submit', async event => {
+                event.preventDefault();
+                const peer = this.state.currentConversation;
+                const passphrase = document.getElementById('direct-message-key').value;
+                const status = document.getElementById('direct-message-key-status');
+                const unlockButton = document.getElementById('direct-message-key-submit');
+                if (!peer) return;
+                unlockButton.disabled = true;
+                status.textContent = 'Connecting securely...';
+                try {
+                    const result = await this.directMessages.openConversation(peer, passphrase);
+                    document.getElementById('direct-message-key').value = '';
+                    status.textContent = result.saveError
+                        ? `Conversation unlocked, but the key could not be saved on this device: ${result.saveError.message}`
+                        : 'Conversation unlocked. The shared passphrase is remembered only on this device.';
+                } catch (error) {
+                    status.textContent = error.message;
+                    document.getElementById('direct-message-key').value = '';
+                } finally {
+                    unlockButton.disabled = false;
                 }
             });
 
@@ -1622,7 +1658,17 @@
             BlockTalk.init();
         });
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/gun@0.2020.1240/gun.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="app.js" defer></script>
+    <script>
+        //notes Register the service worker that caches and serves the BlockTalk application shell.
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .catch(error => console.error('BlockTalk service worker registration failed:', error));
+            });
+        }
+    </script>
 </body>
 </html>

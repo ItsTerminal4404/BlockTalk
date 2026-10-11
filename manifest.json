@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "BlockTalk - Real-Time Chat",
+  "short_name": "BlockTalk",
+  "description": "Private, encrypted direct messaging and calling.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#080a0c",
+  "theme_color": "#16baff",
+  "icons": [
+    {
+      "src": "/icons/blocktalk.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

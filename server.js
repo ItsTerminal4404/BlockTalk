@@ -126,11 +126,21 @@ app.disable('x-powered-by');
 app.use(express.json({ limit: '32kb' }));
 app.get('/healthz', (request, response) => response.status(200).json({ status: 'ok' }));
 app.get('/', (request, response) => response.sendFile(path.join(__dirname, 'index.html')));
-['index.html', 'app.js', 'style.css', 'logo.png'].forEach(asset => {
+['index.html', 'app.js', 'style.css', 'logo.png', 'manifest.json'].forEach(asset => {
     app.get(`/${asset}`, (request, response) => {
         response.sendFile(path.join(__dirname, asset), {
             headers: { 'Cache-Control': process.env.NODE_ENV === 'production' ? 'public, max-age=3600' : 'no-cache' }
         });
+    });
+});
+app.get('/sw.js', (request, response) => {
+    response.sendFile(path.join(__dirname, 'sw.js'), {
+        headers: { 'Cache-Control': 'no-cache' }
+    });
+});
+app.get('/icons/blocktalk.svg', (request, response) => {
+    response.sendFile(path.join(__dirname, 'icons', 'blocktalk.svg'), {
+        headers: { 'Cache-Control': process.env.NODE_ENV === 'production' ? 'public, max-age=86400' : 'no-cache' }
     });
 });
 
