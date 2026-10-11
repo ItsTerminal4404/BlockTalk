@@ -14,6 +14,7 @@ Serve the repository root as static files, for example with
 `python -m http.server 8000`, then open `http://localhost:8000`. Netlify can
 publish the repository root directly. Installable PWA features and microphone
 access require HTTPS in production (localhost is allowed for local development).
+The current official deployment is `https://webblocktalk.netlify.app/`.
 
 Gun identities are separate from the former Node-server accounts. Existing
 server accounts are not migrated; users must create a new Gun account. Gun
