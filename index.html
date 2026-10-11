@@ -750,24 +750,29 @@
                 <h2 class="auth-form-title" id="authFormTitle">Sign Up</h2>
                 <div class="form-group">
                     <label class="form-label" for="authUsername" id="usernameLabel">Sign Up Username</label>
-                    <input type="text" class="form-input" id="authUsername" placeholder="Choose a username" required>
+                    <input type="text" class="form-input" id="authUsername" placeholder="Choose a username" minlength="3" maxlength="32" required>
                     <div class="form-error" id="usernameError"></div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="auth-email" id="emailLabel">Sign Up Email</label>
-                    <input type="email" class="form-input" id="auth-email" placeholder="Enter your email" required>
-                    <div class="form-error" id="emailError"></div>
-                </div>
-                <div class="form-group">
                     <label class="form-label" for="authPassword" id="passwordLabel">Sign Up Password</label>
-                    <input type="password" class="form-input" id="authPassword" placeholder="Create a password" required>
+                    <input type="password" class="form-input" id="authPassword" placeholder="Create a strong password" autocomplete="current-password" required>
                     <div class="form-error" id="passwordError"></div>
                 </div>
                 <div class="form-group" id="confirmPasswordGroup">
                     <label class="form-label" for="authConfirmPassword" id="confirmPasswordLabel">Sign Up Confirm Password</label>
-                    <input type="password" class="form-input" id="authConfirmPassword" placeholder="Confirm password" required>
+                    <input type="password" class="form-input" id="authConfirmPassword" placeholder="Confirm password" autocomplete="new-password" required>
                     <div class="form-error" id="confirmError"></div>
                 </div>
+                <aside class="auth-security-notice" aria-label="Security notice">
+                    <strong>⚠️ SECURITY NOTICE</strong>
+                    <ul>
+                        <li><strong>Protect your accounts:</strong> Never use your actual ArchMC, Discord, or Google passwords on this app. Always create a completely unique password for BlockTalk.</li>
+                        <li><strong>Check your URL bar:</strong> The only official web address for this application is <code>blocktalk.netlify.app</code>. If you are on a Vercel, Cloudflare (<code>pages.dev</code>), or any other domain, it is a fake copycat site. Do not enter your credentials there.</li>
+                    </ul>
+                </aside>
+                <p class="auth-account-warning">
+                    BlockTalk cannot reset a Gun password. Keep it safe; profile, friend, and block metadata is public to relay peers.
+                </p>
                 <button type="submit" class="auth-button" id="authSubmitBtn">Sign Up</button>
             </form>
             <div class="auth-toggle">
@@ -787,7 +792,7 @@
             <div class="user-profile-panel">
                 <div class="user-info">
                     <div class="user-identity">
-                        <div class="my-pfp" id="my-pfp" aria-label="Profile picture">--</div>
+                        <div class="my-pfp" id="my-pfp" role="button" tabindex="0" aria-label="Open your profile">--</div>
                         <div class="user-label" id="userLabel">As: user1</div>
                     </div>
                     <button class="logout-button" id="logoutBtn">Logout</button>
@@ -798,6 +803,7 @@
             <div class="nav-tabs">
                 <button class="nav-tab active" data-tab="dm">Messages</button>
                 <button class="nav-tab" data-tab="friends">Friends</button>
+                <button class="nav-tab" data-tab="servers">Servers</button>
             </div>
 
             <!-- FRIENDS PANEL -->
@@ -825,6 +831,28 @@
                 <div class="dm-list" id="dmList">
                     <!-- DMs dynamically inserted here -->
                 </div>
+            </div>
+
+            <div class="servers-panel" id="serversPanel">
+                <div class="servers-header">
+                    <label class="friends-section-title" for="serverNameInput">Create a private server</label>
+                    <div class="server-form-row">
+                        <input class="add-friend-input" id="serverNameInput" maxlength="40" placeholder="Server name">
+                        <button type="button" class="add-friend-button" id="createServerButton">Create</button>
+                    </div>
+                    <label class="friends-section-title" for="serverInviteInput">Join with invite code</label>
+                    <div class="server-form-row">
+                        <input class="add-friend-input" id="serverInviteInput" maxlength="128" placeholder="Paste invite code">
+                        <button type="button" class="add-friend-button" id="joinServerButton">Join</button>
+                    </div>
+                    <p class="server-status" id="serverStatus" role="status" aria-live="polite"></p>
+                    <div class="server-invite-result hidden" id="serverInviteResult">
+                        <span>Share this private invite code:</span>
+                        <code id="serverInviteCode"></code>
+                        <button type="button" class="friend-action-btn" id="copyServerInvite">Copy</button>
+                    </div>
+                </div>
+                <div class="server-list" id="serverList" aria-label="Your servers"></div>
             </div>
 
             <div class="sidebar-footer">
@@ -912,7 +940,15 @@
             <div class="input-frame">
                 <div class="input-wrapper">
                     <textarea class="message-input" id="messageInput" placeholder="Type a message..." maxlength="2000"></textarea>
-                    <button class="send-button" id="sendBtn">Send</button>
+                    <div class="message-tools">
+                        <button type="button" class="message-tool-button" id="emojiPickerButton" aria-label="Choose emoji" title="Choose emoji">☺</button>
+                        <button type="button" class="message-tool-button" id="attachButton" aria-label="Attach an image" title="Attach image">＋ Image</button>
+                        <button type="button" class="message-tool-button" id="recordVoiceButton" aria-label="Record voice snippet">Record</button>
+                        <input id="attachmentInput" type="file" accept="image/*" hidden>
+                        <div class="emoji-picker hidden" id="emojiPicker" role="group" aria-label="Emoji picker"></div>
+                        <span class="media-status" id="mediaStatus" role="status" aria-live="polite"></span>
+                        <button class="send-button" id="sendBtn">Send</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -924,8 +960,13 @@
         <section class="settings-panel">
             <p class="settings-kicker">BLOCKTALK / CONFIGURATION</p>
             <h2 class="settings-title" id="settings-title">Account Settings</h2>
-            <label class="settings-label" for="settings-pfp-url">Profile Picture URL</label>
+            <label class="settings-label" for="settings-pfp-url">Profile Picture URL (optional)</label>
             <input class="settings-input" id="settings-pfp-url" type="url" placeholder="https://example.com/avatar.png" autocomplete="url">
+            <label class="settings-label" for="settings-pfp-file">Or choose / drop an image</label>
+            <label class="profile-picture-dropzone" id="profilePictureDropzone" for="settings-pfp-file">
+                <span id="profilePictureDropzoneText">Drop a picture here or browse (WebP/JPEG/PNG, max 160 KB)</span>
+                <input id="settings-pfp-file" type="file" accept="image/*" hidden>
+            </label>
             <label class="settings-label" for="settings-theme">Interface Theme</label>
             <select class="settings-input" id="settings-theme">
                 <option value="terminal">Terminal Black</option>
@@ -940,6 +981,36 @@
         </section>
     </div>
 
+    <div class="profile-modal hidden" id="profileModal" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
+        <section class="profile-panel">
+            <button type="button" class="profile-close-button" id="profileModalClose" aria-label="Close profile">×</button>
+            <div class="profile-summary">
+                <div class="profile-picture-large" id="profileModalPicture">?</div>
+                <div>
+                    <h2 class="profile-title" id="profileModalTitle">Profile</h2>
+                    <div class="profile-badges" id="profileModalBadges"></div>
+                </div>
+            </div>
+            <p class="profile-status" id="profileModalStatus" role="status" aria-live="polite"></p>
+            <section class="owner-badge-tools hidden" id="ownerBadgeTools">
+                <h3>Owner badge tools</h3>
+                <label class="settings-label" for="badgeTargetUsername">Find a registered username</label>
+                <div class="server-form-row">
+                    <input class="settings-input" id="badgeTargetUsername" maxlength="32" placeholder="Username">
+                    <button type="button" class="add-friend-button" id="findBadgeTarget">Find</button>
+                </div>
+                <p id="badgeTargetStatus" role="status" aria-live="polite"></p>
+                <div class="server-form-row">
+                    <select class="settings-input" id="badgeType">
+                        <option value="met-owner">Met the Owner</option>
+                        <option value="owner-friend">Owner's Friend</option>
+                    </select>
+                    <button type="button" class="add-friend-button" id="awardBadgeButton" disabled>Award</button>
+                </div>
+            </section>
+        </section>
+    </div>
+
     <script>
         // ===== BLOCKTALK APPLICATION STATE MANAGEMENT =====
         // This modular architecture separates concerns for maintainability and performance
@@ -950,6 +1021,7 @@
                 isAuthenticated: false,
                 currentUser: null,
                 currentConversation: null,
+                currentServer: null,
                 friends: [],
                 messages: {}, // Structure: { "friendUsername": [{ id, sender, content, timestamp, status }] }
                 pendingFriendRequests: {
@@ -961,42 +1033,39 @@
                 typingUsers: {}
             },
             database: { profiles: {}, calls: {} },
-            sessionToken: null,
+            gun: null,
+            gunUser: null,
+            gunProfileNode: null,
+            gunPresenceNode: null,
+            profileObserver: null,
+            friendEventObserver: null,
+            presenceSubscriptions: new Map(),
+            presenceTimer: 0,
+            knownUserPubs: new Map(),
+            processedFriendEvents: new Set(),
             directMessageCache: Object.create(null),
             directMessageReady: false,
 
-            apiRequest: async function(endpoint, options = {}) {
-                const headers = { 'Content-Type': 'application/json', ...options.headers };
-                if (this.sessionToken) headers.Authorization = `Bearer ${this.sessionToken}`;
-                let response;
-                try {
-                    response = await fetch(endpoint, { ...options, headers });
-                } catch (error) {
-                    throw new Error('Could not reach the BlockTalk server. Check your connection and try again.');
-                }
-                const result = response.status === 204 ? null : await response.json().catch(() => ({}));
-                if (!response.ok) throw new Error(result?.error || 'The request could not be completed.');
-                return result;
-            },
-
-            applyServerData: function(data) {
-                this.state.currentUser = data.currentUser;
-                this.database = data.database;
-                const profile = this.getUserProfile(this.database, data.currentUser.username);
-                this.state.friends = profile.friends;
-                this.state.messages = profile.messages;
-                Object.entries(this.directMessageCache).forEach(([peer, messages]) => {
-                    this.state.messages[peer] = messages;
-                });
-                this.state.pendingFriendRequests = profile.pendingFriendRequests;
-                this.state.blockedUsers = profile.blockedUsers;
-                this.state.onlineUsers = new Set(profile.onlineUsers || []);
-                window.dispatchEvent(new CustomEvent('blocktalk:database-change'));
-            },
-
             refreshAndRender: async function() {
-                const data = await this.apiRequest('/api/data');
-                this.applyServerData(data);
+                if (!this.state.currentUser || !this.gunProfileNode) return;
+                const username = this.state.currentUser.username;
+                const profile = this.createUserProfile(await this.readGunNode(this.gunProfileNode) || {});
+                this.setOwnProfile(profile);
+                const relatedUsers = new Set([
+                    ...profile.friends.map(friend => friend.username),
+                    ...profile.pendingFriendRequests.incoming,
+                    ...profile.pendingFriendRequests.outgoing
+                ]);
+                for (const relatedUsername of relatedUsers) {
+                    try {
+                        const pub = await this.lookupUserPub(relatedUsername);
+                        if (pub) this.database.profiles[relatedUsername] = await this.readProfileByPub(pub);
+                    } catch (error) {
+                        console.warn(`Could not load ${relatedUsername}'s public profile:`, error);
+                    }
+                }
+                this.database.profiles[username] = profile;
+                await this.watchFriendPresence();
                 if (this.state.isAuthenticated) {
                     this.renderFriendsList();
                     this.renderDMList();
@@ -1004,13 +1073,303 @@
                 }
             },
 
+            initializeGun: function() {
+                if (this.gun) return this.gun;
+                if (typeof window.Gun !== 'function') throw new Error('GunDB did not load. Refresh and try again.');
+                this.gun = window.Gun({ peers: ['https://peer.ooo/gun'], axe: false });
+                this.gunUser = this.gun.user();
+                return this.gun;
+            },
+
+            readGunNode: function(node, timeoutMs = 12000) {
+                return new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error('Gun relay did not respond in time. Check your connection and try again.')), timeoutMs);
+                    node.once(data => {
+                        clearTimeout(timeout);
+                        resolve(data && typeof data === 'object' ? data : null);
+                    });
+                });
+            },
+
+            writeGunNode: function(node, value, timeoutMs = 15000) {
+                return new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error('Gun relay did not acknowledge the update. Check your connection and retry.')), timeoutMs);
+                    node.put(value, acknowledgement => {
+                        clearTimeout(timeout);
+                        if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
+                        else resolve();
+                    });
+                });
+            },
+
+            getGunSea: function() {
+                const sea = this.gun?.SEA || window.Gun?.SEA || window.SEA;
+                if (!sea) throw new Error('Gun SEA cryptography did not load.');
+                return sea;
+            },
+
+            lookupUserPub: async function(username) {
+                if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username)) return null;
+                if (this.knownUserPubs.has(username)) return this.knownUserPubs.get(username);
+                const record = await this.readGunNode(this.gun.get(`~@${username}`));
+                const pub = record && Object.keys(record).find(key =>
+                    key.startsWith('~') && !key.startsWith('~@') && key.length > 2
+                );
+                if (!pub) return null;
+                const normalizedPub = pub.slice(1);
+                this.knownUserPubs.set(username, normalizedPub);
+                return normalizedPub;
+            },
+
+            readProfileByPub: async function(pub) {
+                const record = await this.readGunNode(
+                    this.gun.get(`~${pub}`).get('blocktalk').get('profile')
+                );
+                return this.createUserProfile(record || {});
+            },
+
+            setOwnProfile: function(profile) {
+                const username = this.state.currentUser?.username;
+                if (!username) return;
+                const normalized = this.createUserProfile(profile);
+                this.database.profiles[username] = normalized;
+                this.state.friends = normalized.friends;
+                this.state.pendingFriendRequests = normalized.pendingFriendRequests;
+                this.state.blockedUsers = normalized.blockedUsers;
+                this.state.onlineUsers = new Set(
+                    [...this.presenceSubscriptions.entries()]
+                        .filter(([, presence]) => presence.isOnline)
+                        .map(([friend]) => friend)
+                );
+                window.dispatchEvent(new CustomEvent('blocktalk:database-change'));
+                if (this.state.isAuthenticated) {
+                    this.renderFriendsList();
+                    this.renderDMList();
+                    this.renderChatArea();
+                }
+            },
+
+            saveOwnProfile: async function(profile) {
+                if (!this.gunProfileNode || !this.state.currentUser) throw new Error('Sign in before changing account data.');
+                const normalized = this.createUserProfile(profile);
+                const previous = this.createUserProfile(
+                    this.getUserProfile(this.database, this.state.currentUser.username)
+                );
+                const collectionUpdates = [
+                    ['friends', previous.friends.map(friend => friend.username), normalized.friends.map(friend => friend.username)],
+                    ['blockedUsers', previous.blockedUsers, normalized.blockedUsers],
+                    ['pendingFriendRequests.incoming', previous.pendingFriendRequests.incoming, normalized.pendingFriendRequests.incoming],
+                    ['pendingFriendRequests.outgoing', previous.pendingFriendRequests.outgoing, normalized.pendingFriendRequests.outgoing]
+                ];
+                for (const [path, oldNames, newNames] of collectionUpdates) {
+                    const collectionNode = path.split('.').reduce((node, part) => node.get(part), this.gunProfileNode);
+                    for (const removedName of oldNames.filter(name => !newNames.includes(name))) {
+                        await this.writeGunNode(collectionNode.get(encodeURIComponent(removedName)), null);
+                    }
+                }
+                await this.writeGunNode(this.gunProfileNode, this.serializeUserProfile(normalized));
+                this.setOwnProfile(normalized);
+                return normalized;
+            },
+
+            updateProfile: async function(changes) {
+                const profile = this.createUserProfile(this.getUserProfile(this.database, this.state.currentUser.username));
+                await this.saveOwnProfile({ ...profile, ...changes });
+                await this.refreshAndRender();
+            },
+
+            startPresence: function() {
+                if (!this.gunPresenceNode) return;
+                clearInterval(this.presenceTimer);
+                const publish = () => {
+                    this.gunPresenceNode.put(Date.now());
+                    this.refreshPresenceStatuses();
+                };
+                publish();
+                this.presenceTimer = setInterval(publish, 15000);
+            },
+
+            refreshPresenceStatuses: function() {
+                const now = Date.now();
+                this.presenceSubscriptions.forEach(presence => {
+                    presence.isOnline = Number.isFinite(presence.lastSeen) && now - presence.lastSeen < 45000;
+                });
+                this.state.onlineUsers = new Set(
+                    [...this.presenceSubscriptions.entries()]
+                        .filter(([, presence]) => presence.isOnline)
+                        .map(([username]) => username)
+                );
+                if (this.state.isAuthenticated) {
+                    this.renderFriendsList();
+                    this.renderDMList();
+                }
+            },
+
+            watchFriendPresence: async function() {
+                const friends = new Set(this.state.friends.map(friend => friend.username));
+                this.presenceSubscriptions.forEach((presence, username) => {
+                    if (friends.has(username)) return;
+                    presence.node.off();
+                    this.presenceSubscriptions.delete(username);
+                });
+                for (const username of friends) {
+                    if (this.presenceSubscriptions.has(username)) continue;
+                    try {
+                        const pub = await this.lookupUserPub(username);
+                        if (!pub) continue;
+                        const node = this.gun.get(`~${pub}`).get('blocktalk').get('presence');
+                        const presence = { node, isOnline: false, lastSeen: 0 };
+                        this.presenceSubscriptions.set(username, presence);
+                        node.on(timestamp => {
+                            presence.lastSeen = timestamp;
+                            this.refreshPresenceStatuses();
+                        });
+                    } catch (error) {
+                        console.warn(`Could not subscribe to ${username}'s presence:`, error);
+                    }
+                }
+            },
+
+            publishFriendEvent: async function(action, recipient, recipientPub) {
+                const pair = this.gunUser?._?.sea;
+                if (!pair || typeof pair.pub !== 'string') throw new Error('Your Gun account is not authenticated.');
+                const payload = {
+                    id: window.crypto.randomUUID(),
+                    action,
+                    from: this.state.currentUser.username,
+                    fromPub: pair.pub,
+                    to: recipient,
+                    toPub: recipientPub,
+                    timestamp: Date.now()
+                };
+                const signature = await this.getGunSea().sign(JSON.stringify(payload), pair);
+                if (typeof signature !== 'string') throw new Error('Could not sign the friend update.');
+                await this.writeGunNode(
+                    this.gun.get('blocktalk-v1').get('friend-events').get(recipientPub).get(payload.id),
+                    { payload, signature }
+                );
+            },
+
+            handleFriendEvent: async function(eventId, envelope) {
+                const me = this.state.currentUser;
+                const payload = envelope?.payload;
+                if (!me || !payload || typeof eventId !== 'string' || payload.id !== eventId ||
+                    payload.toPub !== me.pub || payload.to !== me.username ||
+                    !['request', 'accept', 'decline', 'cancel', 'unfriend', 'block'].includes(payload.action) ||
+                    typeof payload.from !== 'string' || payload.from === me.username ||
+                    typeof payload.fromPub !== 'string' || !Number.isFinite(payload.timestamp) ||
+                    payload.timestamp > Date.now() + 60000 || Date.now() - payload.timestamp > 365 * 86400000 ||
+                    this.processedFriendEvents.has(eventId)) return;
+                const signedFields = {
+                    id: payload.id,
+                    action: payload.action,
+                    from: payload.from,
+                    fromPub: payload.fromPub,
+                    to: payload.to,
+                    toPub: payload.toPub,
+                    timestamp: payload.timestamp
+                };
+                const verified = await this.getGunSea().verify(envelope.signature, payload.fromPub);
+                if (typeof verified !== 'string') return;
+                let signedPayload;
+                try {
+                    signedPayload = JSON.parse(verified);
+                } catch (error) {
+                    return;
+                }
+                if (JSON.stringify(signedPayload) !== JSON.stringify(signedFields) ||
+                    await this.lookupUserPub(payload.from) !== payload.fromPub) return;
+                if (this.processedFriendEvents.size >= 2048) {
+                    this.processedFriendEvents.delete(this.processedFriendEvents.values().next().value);
+                }
+                const profile = this.createUserProfile(this.getUserProfile(this.database, me.username));
+                const peer = payload.from;
+                const removeName = list => list.filter(name => name !== peer);
+                const hasFriend = profile.friends.some(friend => friend.username === peer);
+                if (payload.action === 'request') {
+                    if (profile.blockedUsers.includes(peer) || hasFriend) return;
+                    if (!profile.pendingFriendRequests.incoming.includes(peer)) {
+                        profile.pendingFriendRequests.incoming.push(peer);
+                    }
+                } else if (payload.action === 'accept') {
+                    if (!profile.pendingFriendRequests.outgoing.includes(peer)) return;
+                    profile.pendingFriendRequests.outgoing = removeName(profile.pendingFriendRequests.outgoing);
+                    if (!hasFriend) profile.friends.push({ username: peer, status: 'offline', addedAt: payload.timestamp });
+                } else if (payload.action === 'decline') {
+                    if (!profile.pendingFriendRequests.outgoing.includes(peer)) return;
+                    profile.pendingFriendRequests.outgoing = removeName(profile.pendingFriendRequests.outgoing);
+                } else if (payload.action === 'cancel') {
+                    if (!profile.pendingFriendRequests.incoming.includes(peer)) return;
+                    profile.pendingFriendRequests.incoming = removeName(profile.pendingFriendRequests.incoming);
+                } else if (payload.action === 'unfriend' || payload.action === 'block') {
+                    if (payload.action === 'unfriend' && !hasFriend) return;
+                    profile.friends = profile.friends.filter(friend => friend.username !== peer);
+                    profile.pendingFriendRequests.incoming = removeName(profile.pendingFriendRequests.incoming);
+                    profile.pendingFriendRequests.outgoing = removeName(profile.pendingFriendRequests.outgoing);
+                }
+                this.processedFriendEvents.add(eventId);
+                await this.saveOwnProfile(profile);
+                await this.refreshAndRender();
+            },
+
+            activateGunAccount: async function(username, authentication = {}, isNewAccount = false) {
+                const pub = this.gunUser?.is?.pub || this.gunUser?._?.sea?.pub || authentication?.pub;
+                if (typeof pub !== 'string' || !pub) throw new Error('Gun did not return a valid public account key.');
+                this.knownUserPubs.set(username, pub);
+                this.state.currentUser = { username, pub };
+                this.gunProfileNode = this.gunUser.get('blocktalk').get('profile');
+                this.gunPresenceNode = this.gunUser.get('blocktalk').get('presence');
+                const profile = this.createUserProfile(await this.readGunNode(this.gunProfileNode) || {});
+                if (isNewAccount && !profile.accountCreatedAt) profile.accountCreatedAt = Date.now();
+                await this.saveOwnProfile(profile);
+                this.installGunObservers();
+                this.startPresence();
+                this.state.isAuthenticated = true;
+                await this.refreshAndRender();
+                this.showApp();
+                window.dispatchEvent(new Event('blocktalk:authenticated'));
+            },
+
+            installGunObservers: function() {
+                if (this.profileObserver) this.profileObserver.off();
+                if (this.friendEventObserver) this.friendEventObserver.off();
+                this.profileObserver = this.gunProfileNode;
+                this.profileObserver.on(profile => {
+                    if (!profile || !this.state.currentUser) return;
+                    this.setOwnProfile(profile);
+                    this.refreshAndRender().catch(error => console.error('Could not refresh Gun profile:', error));
+                });
+                const pub = this.state.currentUser.pub;
+                this.friendEventObserver = this.gun
+                    .get('blocktalk-v1').get('friend-events').get(pub).map();
+                this.friendEventObserver.on((event, eventId) => {
+                    this.handleFriendEvent(eventId, event).catch(error => {
+                        console.error('Could not process Gun friend update:', error);
+                    });
+                });
+            },
+
             // ===== INITIALIZATION =====
             init: function() {
                 this.setupEventListeners();
                 this.renderUI();
-                this.loadStoredSession().catch(error => {
+                try {
+                    this.initializeGun();
+                    const user = this.gunUser;
+                    if (typeof user.recall === 'function') {
+                        user.recall({}, () => {
+                            const account = user.is;
+                            if (this.state.isAuthenticated || !account?.alias || !account?.pub) return;
+                            this.auth.isSignUpMode = false;
+                            this.activateGunAccount(account.alias).catch(error => {
+                                this.auth.showError('passwordError', error.message);
+                            });
+                            window.dispatchEvent(new Event('blocktalk:auth-mode-changed'));
+                        });
+                    }
+                } catch (error) {
                     this.auth.showError('passwordError', error.message);
-                });
+                }
             },
 
             // ===== AUTHENTICATION MODULE =====
@@ -1027,12 +1386,14 @@
                         this.isSignUpMode ? 'Already have an account? ' : "Don't have an account? ";
                     document.getElementById('confirmPasswordGroup').style.display = 
                         this.isSignUpMode ? 'block' : 'none';
+                    document.getElementById('authConfirmPassword').required = this.isSignUpMode;
+                    document.getElementById('authPassword').autocomplete =
+                        this.isSignUpMode ? 'new-password' : 'current-password';
                 },
 
                 handleSubmit: async function(e) {
                     e.preventDefault();
                     const username = document.getElementById('authUsername').value.trim();
-                    const email = document.getElementById('auth-email').value.trim();
                     const password = document.getElementById('authPassword').value;
                     const confirmPassword = document.getElementById('authConfirmPassword').value;
 
@@ -1045,13 +1406,10 @@
                         return;
                     }
 
-                    if (this.isSignUpMode && (!email || !this.isValidEmail(email))) {
-                        this.showError('emailError', 'Please enter a valid email');
-                        return;
-                    }
-
-                    if (!password || password.length < 6) {
-                        this.showError('passwordError', 'Password must be at least 6 characters');
+                    if (!password || password.length < (this.isSignUpMode ? 12 : 1)) {
+                        this.showError('passwordError', this.isSignUpMode
+                            ? 'Use a password with at least 12 characters.'
+                            : 'Enter your password.');
                         return;
                     }
 
@@ -1061,29 +1419,39 @@
                     }
 
                     try {
-                        const endpoint = this.isSignUpMode ? '/api/auth/signup' : '/api/auth/signin';
-                        const data = await BlockTalk.apiRequest(endpoint, {
-                            method: 'POST',
-                            body: JSON.stringify({ username, email, password })
+                        BlockTalk.initializeGun();
+                        const user = BlockTalk.gun.user();
+                        BlockTalk.gunUser = user;
+                        const isNewAccount = this.isSignUpMode;
+                        if (isNewAccount) {
+                            await new Promise((resolve, reject) => {
+                                //notes Gun SEA derives the account cryptographic keypair from the username and password during account creation.
+                                const timeout = setTimeout(() => reject(new Error('Gun account creation timed out. Check the relay connection and try again.')), 20000);
+                                user.create(username, password, acknowledgement => {
+                                    clearTimeout(timeout);
+                                    if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
+                                    else resolve(acknowledgement);
+                                });
+                            });
+                        }
+                        const authentication = await new Promise((resolve, reject) => {
+                            const timeout = setTimeout(() => reject(new Error('Gun sign-in timed out. Check the relay connection and try again.')), 20000);
+                            user.auth(username, password, acknowledgement => {
+                                clearTimeout(timeout);
+                                if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
+                                else resolve(acknowledgement);
+                            });
                         });
-                        BlockTalk.sessionToken = data.token;
-                        BlockTalk.state.isAuthenticated = true;
-                        BlockTalk.applyServerData(data);
-                        BlockTalk.saveSession();
-                        BlockTalk.showApp();
-                        window.dispatchEvent(new Event('blocktalk:authenticated'));
+                        await BlockTalk.activateGunAccount(username, authentication, isNewAccount);
+                        document.getElementById('authForm').reset();
                     } catch (error) {
-                        const target = this.isSignUpMode && error.message.toLowerCase().includes('username')
+                        const message = error?.message || String(error);
+                        const target = /already|alias|username|exist/i.test(message) && this.isSignUpMode
                             ? 'usernameError'
-                            : this.isSignUpMode && error.message.toLowerCase().includes('email')
-                                ? 'emailError'
-                                : 'passwordError';
-                        this.showError(target, error.message);
+                            : 'passwordError';
+                        //notes Render Gun registration and sign-in errors in the visible form feedback here.
+                        this.showError(target, message);
                     }
-                },
-
-                isValidEmail: function(email) {
-                    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
                 },
 
                 showError: function(elementId, message) {
@@ -1100,38 +1468,6 @@
                 }
             },
 
-            // ===== PERSISTENCE LAYER =====
-            saveSession: function() {
-                const session = {
-                    token: this.sessionToken,
-                    timestamp: Date.now()
-                };
-                localStorage.setItem('blocktalk_session', JSON.stringify(session));
-            },
-
-            loadStoredSession: async function() {
-                const session = localStorage.getItem('blocktalk_session');
-                if (session) {
-                    const parsed = JSON.parse(session);
-                    if (typeof parsed.token === 'string' && Date.now() - parsed.timestamp < 30 * 86400000) {
-                        this.sessionToken = parsed.token;
-                        try {
-                            await this.refreshAndRender();
-                            this.state.isAuthenticated = true;
-                            this.showApp();
-                            window.dispatchEvent(new Event('blocktalk:authenticated'));
-                            return;
-                        } catch (error) {
-                            if (!error.message.includes('sign in again')) throw error;
-                            this.sessionToken = null;
-                            localStorage.removeItem('blocktalk_session');
-                        }
-                    } else {
-                        localStorage.removeItem('blocktalk_session');
-                    }
-                }
-            },
-
             readDatabase: function() {
                 return this.database;
             },
@@ -1144,20 +1480,54 @@
             createUserProfile: function(profile = {}) {
                 profile = profile || {};
                 const requests = profile.pendingFriendRequests || profile.pendingRequests || {};
+                const toArray = value => {
+                    if (Array.isArray(value)) return value;
+                    if (!value || typeof value !== 'object') return [];
+                    return Object.entries(value)
+                        .filter(([key]) => key !== '_' && key !== '#')
+                        .map(([key, entry]) => entry === true ? decodeURIComponent(key) : entry);
+                };
                 return {
-                    email: typeof profile.email === 'string' ? profile.email : '',
                     profilePictureUrl: typeof profile.profilePictureUrl === 'string' ? profile.profilePictureUrl : '',
+                    accountCreatedAt: Number.isFinite(profile.accountCreatedAt) ? profile.accountCreatedAt : 0,
                     theme: ['terminal', 'cyberpunk', 'light'].includes(profile.theme) ? profile.theme : 'terminal',
-                    blockedUsers: Array.isArray(profile.blockedUsers) ? profile.blockedUsers : [],
+                    blockedUsers: toArray(profile.blockedUsers).filter(name => typeof name === 'string'),
                     incomingCalls: Array.isArray(profile.incomingCalls) ? profile.incomingCalls : [],
                     activeCallId: typeof profile.activeCallId === 'string' ? profile.activeCallId : null,
-                    friends: Array.isArray(profile.friends) ? profile.friends : [],
+                    friends: toArray(profile.friends)
+                        .filter(friend => friend && typeof friend.username === 'string')
+                        .map(friend => ({
+                            username: friend.username,
+                            status: typeof friend.status === 'string' ? friend.status : 'offline',
+                            addedAt: Number.isFinite(friend.addedAt) ? friend.addedAt : 0
+                        })),
                     messages: profile.messages && typeof profile.messages === 'object' ? profile.messages : {},
                     pendingFriendRequests: {
-                        incoming: Array.isArray(requests.incoming) ? requests.incoming : [],
-                        outgoing: Array.isArray(requests.outgoing) ? requests.outgoing : []
+                        incoming: toArray(requests.incoming).filter(name => typeof name === 'string'),
+                        outgoing: toArray(requests.outgoing).filter(name => typeof name === 'string')
                     },
                     onlineUsers: Array.isArray(profile.onlineUsers) ? profile.onlineUsers : []
+                };
+            },
+
+            serializeUserProfile: function(profile) {
+                const normalized = this.createUserProfile(profile);
+                return {
+                    profilePictureUrl: normalized.profilePictureUrl,
+                    accountCreatedAt: normalized.accountCreatedAt,
+                    theme: normalized.theme,
+                    blockedUsers: Object.fromEntries(normalized.blockedUsers.map(username => [
+                        encodeURIComponent(username), true
+                    ])),
+                    friends: Object.fromEntries(normalized.friends.map(friend => [
+                        encodeURIComponent(friend.username), friend
+                    ])),
+                    pendingFriendRequests: {
+                        incoming: Object.fromEntries(normalized.pendingFriendRequests.incoming.map(username => [
+                            encodeURIComponent(username), true
+                        ])),
+                        outgoing: Object.fromEntries(normalized.pendingFriendRequests.outgoing.map(username => [encodeURIComponent(username), true]))
+                    }
                 };
             },
 
@@ -1175,10 +1545,54 @@
             friends: {
                 runAction: async function(action, targetUsername) {
                     try {
-                        await BlockTalk.apiRequest(`/api/friends/${action}`, {
-                            method: 'POST',
-                            body: JSON.stringify({ username: targetUsername })
-                        });
+                        const me = BlockTalk.state.currentUser.username;
+                        const myProfile = BlockTalk.createUserProfile(
+                            BlockTalk.getUserProfile(BlockTalk.database, me)
+                        );
+                        const targetPub = await BlockTalk.lookupUserPub(targetUsername);
+                        if (!targetPub) throw new Error('No Gun account was found for that username.');
+                        const targetProfile = await BlockTalk.readProfileByPub(targetPub);
+                        if (targetProfile.blockedUsers.includes(me) || myProfile.blockedUsers.includes(targetUsername)) {
+                            throw new Error('This user cannot be reached.');
+                        }
+                        const hasFriend = myProfile.friends.some(friend => friend.username === targetUsername);
+                        const incoming = myProfile.pendingFriendRequests.incoming.includes(targetUsername);
+                        const outgoing = myProfile.pendingFriendRequests.outgoing.includes(targetUsername);
+                        if (action === 'request') {
+                            if (hasFriend || outgoing || incoming) throw new Error('You are already friends or have a pending request.');
+                            myProfile.pendingFriendRequests.outgoing.push(targetUsername);
+                            await BlockTalk.saveOwnProfile(myProfile);
+                            await BlockTalk.publishFriendEvent('request', targetUsername, targetPub);
+                        } else if (action === 'accept') {
+                            if (!incoming) throw new Error('That friend request is no longer pending.');
+                            myProfile.pendingFriendRequests.incoming = myProfile.pendingFriendRequests.incoming.filter(name => name !== targetUsername);
+                            myProfile.pendingFriendRequests.outgoing = myProfile.pendingFriendRequests.outgoing.filter(name => name !== targetUsername);
+                            if (!hasFriend) myProfile.friends.push({ username: targetUsername, status: 'offline', addedAt: Date.now() });
+                            await BlockTalk.publishFriendEvent('accept', targetUsername, targetPub);
+                            await BlockTalk.saveOwnProfile(myProfile);
+                        } else if (action === 'decline' || action === 'cancel') {
+                            const expected = action === 'decline' ? incoming : outgoing;
+                            if (!expected) throw new Error('That friend request is no longer pending.');
+                            myProfile.pendingFriendRequests[action === 'decline' ? 'incoming' : 'outgoing'] =
+                                myProfile.pendingFriendRequests[action === 'decline' ? 'incoming' : 'outgoing']
+                                    .filter(name => name !== targetUsername);
+                            await BlockTalk.publishFriendEvent(action, targetUsername, targetPub);
+                            await BlockTalk.saveOwnProfile(myProfile);
+                        } else if (action === 'unfriend') {
+                            if (!hasFriend) throw new Error('That user is not in your friends list.');
+                            myProfile.friends = myProfile.friends.filter(friend => friend.username !== targetUsername);
+                            await BlockTalk.publishFriendEvent(action, targetUsername, targetPub);
+                            await BlockTalk.saveOwnProfile(myProfile);
+                        } else if (action === 'block') {
+                            if (!myProfile.blockedUsers.includes(targetUsername)) myProfile.blockedUsers.push(targetUsername);
+                            myProfile.friends = myProfile.friends.filter(friend => friend.username !== targetUsername);
+                            myProfile.pendingFriendRequests.incoming = myProfile.pendingFriendRequests.incoming.filter(name => name !== targetUsername);
+                            myProfile.pendingFriendRequests.outgoing = myProfile.pendingFriendRequests.outgoing.filter(name => name !== targetUsername);
+                            await BlockTalk.publishFriendEvent(action, targetUsername, targetPub);
+                            await BlockTalk.saveOwnProfile(myProfile);
+                        } else {
+                            throw new Error('Unknown friend action.');
+                        }
                         await BlockTalk.refreshAndRender();
                         if (action === 'request') document.getElementById('addFriendInput').value = '';
                         if (action === 'accept') BlockTalk.selectConversation(targetUsername);
@@ -1188,7 +1602,7 @@
                             BlockTalk.renderChatArea();
                         }
                     } catch (error) {
-                        alert(error.message);
+                        window.alert(error.message);
                     }
                 },
                 sendRequest: function(targetUsername) {
@@ -1219,15 +1633,7 @@
 
             // ===== REAL-TIME CHAT MODULE =====
             chat: {
-                handleTyping: function() {
-                    // [API CALL] Broadcast typing indicator
-                    // POST /api/typing/start
-                    // Debounced typing indicator (simplified)
-                    clearTimeout(BlockTalk.typingTimeout);
-                    BlockTalk.typingTimeout = setTimeout(() => {
-                        // POST /api/typing/stop
-                    }, 3000);
-                }
+                handleTyping: function() {}
             },
 
             // ===== UI RENDERING MODULE =====
@@ -1369,7 +1775,11 @@
                     const unreadCount = messages.filter(message => message.sender === friend.username && message.status !== 'read').length;
                     const lastMessage = messages[messages.length - 1];
                     const preview = lastMessage
-                        ? lastMessage.content.substring(0, 30) + (lastMessage.content.length > 30 ? '...' : '')
+                        ? lastMessage.attachment?.kind === 'image'
+                            ? 'Image'
+                            : lastMessage.attachment?.kind === 'voice'
+                                ? 'Voice snippet'
+                                : lastMessage.content.substring(0, 30) + (lastMessage.content.length > 30 ? '...' : '')
                         : 'No messages yet';
                     const info = document.createElement('div');
                     info.className = 'dm-item-info';
@@ -1398,6 +1808,7 @@
                 if (!this.state.friends.some(friend => friend.username === friendUsername) ||
                     this.getUserProfile(database, username).blockedUsers.includes(friendUsername) ||
                     this.getUserProfile(database, friendUsername).blockedUsers.includes(username)) {
+                    this.state.currentServer = null;
                     this.state.currentConversation = null;
                     this.directMessageReady = false;
                     window.dispatchEvent(new CustomEvent('blocktalk:conversation-selected', {
@@ -1406,6 +1817,7 @@
                     this.renderChatArea();
                     return;
                 }
+                this.state.currentServer = null;
                 this.state.currentConversation = friendUsername;
                 this.directMessageReady = false;
                 window.dispatchEvent(new CustomEvent('blocktalk:conversation-selected', {
@@ -1422,6 +1834,22 @@
                 const onlineStatus = document.getElementById('onlineStatus');
                 const messageInput = document.getElementById('messageInput');
                 const directMessageKeyPanel = document.getElementById('direct-message-key-panel-form');
+
+                if (this.state.currentServer) {
+                    directMessageKeyPanel.classList.add('hidden');
+                    const serverReady = Boolean(this.serverMessagesReady);
+                    messageInput.disabled = !serverReady;
+                    document.getElementById('sendBtn').disabled = !serverReady;
+                    messageInput.placeholder = serverReady
+                        ? `Message #${this.state.currentServer.name}...`
+                        : 'Connecting to private server...';
+                    chatTitle.textContent = `# ${this.state.currentServer.name}`;
+                    chatSubtitle.textContent = 'Private invite-code server';
+                    onlineStatus.replaceChildren();
+                    document.getElementById('callButton').disabled = true;
+                    this.renderMessages();
+                    return;
+                }
 
                 if (this.state.currentConversation) {
                     const database = this.readDatabase();
@@ -1465,16 +1893,27 @@
 
             renderMessages: function() {
                 const messageLog = document.getElementById('messageLog');
-                const messages = this.state.messages[this.state.currentConversation] || [];
+                const conversationKey = this.state.currentServer
+                    ? `server:${this.state.currentServer.id}`
+                    : this.state.currentConversation;
+                const messages = conversationKey ? this.state.messages[conversationKey] || [] : [];
 
                 if (messages.length === 0) {
-                    messageLog.innerHTML = `
-                        <div class="no-chat-selected">
-                            <div class="no-chat-icon">👋</div>
-                            <div class="no-chat-text">Start a conversation</div>
-                            <div class="no-chat-subtitle">This is the beginning of your conversation with @${this.state.currentConversation}</div>
-                        </div>
-                    `;
+                    const emptyState = document.createElement('div');
+                    emptyState.className = 'no-chat-selected';
+                    const emptyIcon = document.createElement('div');
+                    emptyIcon.className = 'no-chat-icon';
+                    emptyIcon.textContent = '👋';
+                    const emptyTitle = document.createElement('div');
+                    emptyTitle.className = 'no-chat-text';
+                    emptyTitle.textContent = 'Start a conversation';
+                    const emptySubtitle = document.createElement('div');
+                    emptySubtitle.className = 'no-chat-subtitle';
+                    emptySubtitle.textContent = this.state.currentServer
+                        ? `Private messages in ${this.state.currentServer.name}`
+                        : `This is the beginning of your conversation with @${this.state.currentConversation}`;
+                    emptyState.append(emptyIcon, emptyTitle, emptySubtitle);
+                    messageLog.replaceChildren(emptyState);
                     return;
                 }
 
@@ -1496,16 +1935,49 @@
                         statusClass = msg.status === 'read' ? 'read' : '';
                     }
 
-                    messageGroup.innerHTML = `
-                        <div class="message-header">
-                            <span class="message-sender">${msg.sender}</span>
-                            <span class="message-timestamp">${timestamp}</span>
-                        </div>
-                        <div class="message-body">
-                            <div class="message-content">${this.escapeHtml(msg.content)}</div>
-                            ${statusText ? `<div class="message-status ${statusClass}">${statusText}</div>` : ''}
-                        </div>
-                    `;
+                    const header = document.createElement('div');
+                    header.className = 'message-header';
+                    const sender = document.createElement('button');
+                    sender.type = 'button';
+                    sender.className = 'message-sender profile-link';
+                    sender.dataset.profileUsername = msg.sender;
+                    sender.textContent = msg.sender;
+                    const time = document.createElement('span');
+                    time.className = 'message-timestamp';
+                    time.textContent = timestamp;
+                    header.append(sender, time);
+
+                    const body = document.createElement('div');
+                    body.className = 'message-body';
+                    const content = document.createElement('div');
+                    content.className = msg.attachment
+                        ? 'message-content message-attachment-content'
+                        : 'message-content';
+                    if (msg.attachment?.kind === 'image') {
+                        const image = document.createElement('img');
+                        image.className = 'message-image';
+                        image.src = msg.attachment.dataUrl;
+                        image.alt = msg.attachment.name || 'Shared image';
+                        image.loading = 'lazy';
+                        content.appendChild(image);
+                    } else if (msg.attachment?.kind === 'voice') {
+                        const audio = document.createElement('audio');
+                        audio.className = 'message-audio';
+                        audio.controls = true;
+                        audio.preload = 'metadata';
+                        audio.src = msg.attachment.dataUrl;
+                        content.appendChild(audio);
+                    } else {
+                        content.textContent = msg.content;
+                    }
+                    body.appendChild(content);
+                    if (statusText) {
+                        const status = document.createElement('div');
+                        status.className = `message-status ${statusClass}`;
+                        status.textContent = statusText;
+                        body.appendChild(status);
+                    }
+                    messageGroup.append(header, body);
 
                     messageLog.appendChild(messageGroup);
                 });
@@ -1541,13 +2013,20 @@
             },
 
             logout: async function() {
-                try {
-                    await this.apiRequest('/api/auth/logout', { method: 'POST' });
-                } catch (error) {
-                    console.error('Could not invalidate the server session:', error);
-                }
-                localStorage.removeItem('blocktalk_session');
-                this.sessionToken = null;
+                clearInterval(this.presenceTimer);
+                this.presenceTimer = 0;
+                if (this.gunPresenceNode) this.gunPresenceNode.put(0);
+                if (this.profileObserver) this.profileObserver.off();
+                if (this.friendEventObserver) this.friendEventObserver.off();
+                this.presenceSubscriptions.forEach(presence => presence.node.off());
+                this.presenceSubscriptions.clear();
+                if (this.gunUser) this.gunUser.leave();
+                this.gunUser = this.gun?.user() || null;
+                this.gunProfileNode = null;
+                this.gunPresenceNode = null;
+                this.profileObserver = null;
+                this.friendEventObserver = null;
+                this.processedFriendEvents.clear();
                 this.database = { profiles: {}, calls: {} };
                 this.directMessageCache = Object.create(null);
                 this.directMessageReady = false;
@@ -1555,6 +2034,7 @@
                     isAuthenticated: false,
                     currentUser: null,
                     currentConversation: null,
+                    currentServer: null,
                     friends: [],
                     messages: {},
                     pendingFriendRequests: { incoming: [], outgoing: [] },
@@ -1565,6 +2045,8 @@
                 this.showAuth();
                 this.auth.isSignUpMode = true;
                 document.getElementById('authForm').reset();
+                document.getElementById('authConfirmPassword').required = true;
+                window.dispatchEvent(new Event('blocktalk:auth-mode-changed'));
             }
         };
 
@@ -1587,9 +2069,12 @@
                     const tabName = e.target.dataset.tab;
                     document.getElementById('friendsPanel').classList.remove('active');
                     document.getElementById('dmPanel').classList.remove('active');
+                    document.getElementById('serversPanel').classList.remove('active');
 
                     if (tabName === 'friends') {
                         document.getElementById('friendsPanel').classList.add('active');
+                    } else if (tabName === 'servers') {
+                        document.getElementById('serversPanel').classList.add('active');
                     } else {
                         document.getElementById('dmPanel').classList.add('active');
                     }
@@ -1659,7 +2144,6 @@
         });
     </script>
     <script src="https://cdn.jsdelivr.net/npm/gun@0.2020.1240/gun.js"></script>
-    <script src="/socket.io/socket.io.js"></script>
     <script src="app.js" defer></script>
     <script>
         //notes Register the service worker that caches and serves the BlockTalk application shell.

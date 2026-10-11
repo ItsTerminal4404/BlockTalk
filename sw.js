@@ -1,4 +1,4 @@
-const CACHE_NAME = 'blocktalk-shell-v1';
+const CACHE_NAME = 'blocktalk-shell-v3';
 const SHELL_ASSETS = [
     '/',
     '/index.html',

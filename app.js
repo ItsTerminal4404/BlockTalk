@@ -26,8 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsStatus = document.getElementById('settings-status');
     const profilePicture = document.getElementById('my-pfp');
     let localStream = null;
-    let socket = null;
-    let registeredUser = null;
     let gun = null;
     let currentGunMap = null;
     let currentGunSignalingMap = null;
@@ -38,6 +36,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let gunObserverGeneration = 0;
     const pendingGunMessageIds = new Set();
     const seenCallSignalIds = new Set();
+    const MAX_DIRECT_PACKET_LENGTH = 900000;
+    const MAX_RENDERED_SERVER_MESSAGES = 500;
+    const MAX_IMAGE_DATA_URL_LENGTH = 360000;
+    const MAX_VOICE_DATA_URL_LENGTH = 260000;
+    const OWNER_USERNAME = 'ItsTerminal4404';
+    const FOUNDER_BADGE_CUTOFF = Date.UTC(2027, 0, 1);
+    const SERVER_STORAGE_PREFIX = 'blocktalk:servers-v1:';
+    const ATTACHMENT_PREFIX = 'blocktalk-media-v1:';
+    const commonEmojis = [
+        '😀', '😄', '😂', '🥹', '😉', '😍', '😎', '😭', '🤔', '🙌', '👏', '👍',
+        '👎', '❤️', '🧡', '💛', '💚', '💙', '💜', '🔥', '🎉', '✨', '💯', '🙏',
+        '🤝', '👋', '☕', '🚀', '🌙', '✅', '❌', '🤖', '🎮', '🎵', '🐱', '🐶'
+    ];
     let activeCall = null;
     const incomingCalls = new Map();
     let peerConnection = null;
@@ -47,11 +58,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const voiceMeters = new Set();
     let screenStream = null;
     let cameraStream = null;
+    let activeServerObserver = null;
+    let activeServerGeneration = 0;
+    let activeServer = null;
+    let activeServerKey = null;
+    let recordingStream = null;
+    let voiceRecorder = null;
+    let voiceChunks = [];
+    let voiceRecordingTimer = 0;
+    let voiceRecordingTarget = null;
+    let pendingProfilePictureDataUrl = '';
+    let profilePictureProcessing = false;
+    let profilePictureSelectionGeneration = 0;
+    let profileModalGeneration = 0;
+    let badgeTarget = null;
     let isMuted = false;
     const pendingIceCandidates = [];
     const pendingRemoteIceCandidates = new Map();
     const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
     const gunRelays = ['https://peer.ooo/gun'];
+    const pendingMessageStorageKey = 'pending-messages';
+    let pendingMessageFlush = null;
 
     function getDirectMessageRoomId(userId, peerId) {
         if (typeof userId !== 'string' || typeof peerId !== 'string' ||
@@ -154,6 +181,93 @@ document.addEventListener('DOMContentLoaded', () => {
             base64ToBytes(parts[2])
         );
         return new TextDecoder().decode(plaintext);
+    }
+
+    function validateAttachment(attachment) {
+        if (!attachment || typeof attachment !== 'object' ||
+            typeof attachment.dataUrl !== 'string' ||
+            typeof attachment.name !== 'string' || attachment.name.length > 120) {
+            throw new Error('This attachment has an invalid format.');
+        }
+        if (attachment.kind === 'image' &&
+            /^data:image\/(webp|jpeg|png);base64,[A-Za-z0-9+/]+=*$/.test(attachment.dataUrl) &&
+            attachment.dataUrl.length <= MAX_IMAGE_DATA_URL_LENGTH &&
+            dataUrlByteLength(attachment.dataUrl) <= 256 * 1024) return attachment;
+        if (attachment.kind === 'voice' &&
+            /^data:audio\/(webm|mp4|ogg);base64,[A-Za-z0-9+/]+=*$/.test(attachment.dataUrl) &&
+            attachment.dataUrl.length <= MAX_VOICE_DATA_URL_LENGTH &&
+            dataUrlByteLength(attachment.dataUrl) <= 180 * 1024) return attachment;
+        throw new Error('This attachment type or size is not supported.');
+    }
+
+    function decodeMessageContent(content) {
+        if (!content.startsWith(ATTACHMENT_PREFIX)) return { content, attachment: null };
+        const attachment = validateAttachment(JSON.parse(content.slice(ATTACHMENT_PREFIX.length)));
+        return { content: '', attachment };
+    }
+
+    function encodeMessageContent(value) {
+        if (typeof value === 'string') return value.trim();
+        const attachment = validateAttachment(value);
+        return `${ATTACHMENT_PREFIX}${JSON.stringify(attachment)}`;
+    }
+
+    function readFileAsDataUrl(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.addEventListener('load', () => {
+                if (typeof reader.result !== 'string') reject(new Error('The selected file could not be read.'));
+                else resolve(reader.result);
+            }, { once: true });
+            reader.addEventListener('error', () => reject(new Error('The selected file could not be read.')), { once: true });
+            reader.readAsDataURL(file);
+        });
+    }
+
+    async function compressImageFile(file, maximumBytes = 256 * 1024, maximumDimension = 1280) {
+        if (!file?.type.startsWith('image/')) throw new Error('Choose an image file.');
+        if (typeof window.createImageBitmap !== 'function') {
+            throw new Error('This browser cannot safely resize images before sending.');
+        }
+        const bitmap = await window.createImageBitmap(file);
+        try {
+            let scale = Math.min(1, maximumDimension / Math.max(bitmap.width, bitmap.height));
+            for (let attempt = 0; attempt < 12; attempt += 1) {
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+                canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+                const context = canvas.getContext('2d');
+                if (!context) throw new Error('The browser could not prepare this image.');
+                context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', Math.max(0.4, 0.82 - attempt * 0.045)));
+                if (!blob) throw new Error('The browser could not compress this image.');
+                if (blob.size <= maximumBytes) {
+                    const dataUrl = await readFileAsDataUrl(blob);
+                    return { dataUrl, name: file.name.slice(0, 120) || 'image.webp' };
+                }
+                scale *= 0.82;
+            }
+            throw new Error(`The image is too large. Use an image that can be compressed below ${Math.round(maximumBytes / 1024)} KB.`);
+        } finally {
+            bitmap.close();
+        }
+    }
+
+    function dataUrlByteLength(dataUrl) {
+        const comma = dataUrl.indexOf(',');
+        if (comma === -1) return Infinity;
+        return Math.floor((dataUrl.length - comma - 1) * 3 / 4);
+    }
+
+    function setMediaStatus(message) {
+        const status = document.getElementById('mediaStatus');
+        if (status) status.textContent = message;
+    }
+
+    function activeConversationToken() {
+        if (activeServer) return `server:${activeServer.id}`;
+        if (app.state.currentConversation) return `dm:${app.state.currentConversation}`;
+        return null;
     }
 
     async function encryptCallSignal(payload, packet, key) {
@@ -397,18 +511,20 @@ document.addEventListener('DOMContentLoaded', () => {
             if (generation !== gunObserverGeneration || activeGunPeer !== peerId ||
                 !packet || typeof messageId !== 'string' ||
                 (packet.sender !== username && packet.sender !== peerId) ||
-                typeof packet.message !== 'string' || packet.message.length > 24000 ||
+                typeof packet.message !== 'string' || packet.message.length > MAX_DIRECT_PACKET_LENGTH ||
                 !Number.isFinite(packet.timestamp)) return;
             const messages = app.directMessageCache[peerId];
             if (messages.some(message => message.id === messageId) || pendingGunMessageIds.has(messageId)) return;
             pendingGunMessageIds.add(messageId);
             try {
-                const content = await decryptDirectMessage(packet.message, key, packet.sender, packet.timestamp);
+                const plaintext = await decryptDirectMessage(packet.message, key, packet.sender, packet.timestamp);
+                const { content, attachment } = decodeMessageContent(plaintext);
                 if (generation !== gunObserverGeneration || activeGunPeer !== peerId) return;
                 messages.push({
                     id: messageId,
                     sender: packet.sender,
                     content,
+                    attachment,
                     timestamp: packet.timestamp,
                     status: 'sent'
                 });
@@ -428,7 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const signalingObserver = signalingNode.map();
         currentGunSignalingMap = signalingObserver;
-        //notes Replace the former socket.on incoming-call/answer/candidate listeners with this authenticated Gun signaling stream.
+        //notes Replace the former server signaling listeners with this authenticated Gun signaling stream.
         signalingObserver.on((packet, signalId) => {
             receiveCallSignal(packet, signalId, generation, peerId, key)
                 .catch(error => {
@@ -438,16 +554,120 @@ document.addEventListener('DOMContentLoaded', () => {
         return { savedLocally, saveError };
     }
 
+    function getPendingMessages() {
+        const stored = window.localStorage.getItem(pendingMessageStorageKey);
+        if (stored === null) return [];
+        let queue;
+        try {
+            queue = JSON.parse(stored);
+        } catch (error) {
+            throw new Error('The saved offline message queue is unreadable. Do not clear site storage until you have recovered it.');
+        }
+        if (!Array.isArray(queue) || queue.some(entry =>
+            !entry || typeof entry.roomId !== 'string' ||
+            !(entry.roomId.startsWith('blocktalk-dm-v1:') ||
+                /^blocktalk-server-v1:[a-f0-9]{64}$/.test(entry.roomId)) ||
+            !entry.packet || typeof entry.packet.sender !== 'string' ||
+            typeof entry.packet.message !== 'string' ||
+            entry.packet.message.length > MAX_DIRECT_PACKET_LENGTH ||
+            !Number.isFinite(entry.packet.timestamp)
+        )) {
+            throw new Error('The saved offline message queue has an invalid format and was left untouched.');
+        }
+        return queue;
+    }
+
+    function savePendingMessages(queue) {
+        if (!queue.length) {
+            window.localStorage.removeItem(pendingMessageStorageKey);
+            return;
+        }
+        const serialized = JSON.stringify(queue);
+        if (serialized.length > 3500000) {
+            throw new Error('The offline queue is near this browser’s storage limit. Reconnect and send smaller attachments.');
+        }
+        window.localStorage.setItem(pendingMessageStorageKey, serialized);
+    }
+
+    function queueEncryptedMessage(roomId, packet) {
+        const queue = getPendingMessages();
+        if (queue.length >= 500) throw new Error('The offline message queue is full. Reconnect and retry before sending more.');
+        queue.push({ roomId, packet });
+        savePendingMessages(queue);
+    }
+
+    function publishQueuedMessage(entry) {
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('Gun did not acknowledge the queued message.')), 15000);
+            gun.get(entry.roomId).get('messages').set(entry.packet, acknowledgement => {
+                clearTimeout(timeout);
+                if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
+                else resolve();
+            });
+        });
+    }
+
+    async function flushPendingMessages() {
+        if (pendingMessageFlush) return pendingMessageFlush;
+        if (!gun || !window.navigator.onLine) return;
+        pendingMessageFlush = (async () => {
+            //notes Flush the durable offline queue in order, removing each packet only after Gun acknowledges its write.
+            while (window.navigator.onLine) {
+                const queue = getPendingMessages();
+                if (!queue.length) {
+                    savePendingMessages([]);
+                    const status = document.getElementById('direct-message-key-status');
+                    if (status) status.textContent = 'Offline message queue is empty.';
+                    return;
+                }
+                const entry = queue[0];
+                try {
+                    await publishQueuedMessage(entry);
+                } catch (error) {
+                    const status = document.getElementById('direct-message-key-status');
+                    if (status) status.textContent = `Could not send a queued message; it remains saved on this device. ${error.message}`;
+                    return;
+                }
+                const latestQueue = getPendingMessages();
+                const entryIndex = latestQueue.findIndex(queued =>
+                    queued.roomId === entry.roomId &&
+                    queued.packet.sender === entry.packet.sender &&
+                    queued.packet.timestamp === entry.packet.timestamp &&
+                    queued.packet.message === entry.packet.message
+                );
+                if (entryIndex !== -1) latestQueue.splice(entryIndex, 1);
+                savePendingMessages(latestQueue);
+            }
+        })().catch(error => {
+            const status = document.getElementById('direct-message-key-status');
+            if (status) status.textContent = `Could not read or flush the saved offline queue. ${error.message}`;
+            else console.error('Could not flush BlockTalk offline queue:', error);
+        }).finally(() => {
+            pendingMessageFlush = null;
+        });
+        return pendingMessageFlush;
+    }
+
     async function sendDirectMessage(content) {
+        if (activeServer) return sendServerMessage(content);
         const peerId = app.state.currentConversation;
-        if (!content.trim() || !peerId) return;
+        if (!peerId) {
+            setMediaStatus('Choose a direct conversation or server before sending.');
+            return;
+        }
         if (activeGunPeer !== peerId || !activeGunRoom || !activeGunKey) {
             document.getElementById('direct-message-key-status').textContent =
                 'Unlock this conversation with its shared passphrase before sending.';
             return;
         }
-        const text = content.trim();
-        if (text.length > 2000) return;
+        let text;
+        try {
+            text = encodeMessageContent(content);
+        } catch (error) {
+            setMediaStatus(error.message);
+            return;
+        }
+        if (!text || (typeof content === 'string' && text.length > 2000)) return;
         const sender = app.state.currentUser.username;
         const timestamp = Date.now();
         const room = activeGunRoom;
@@ -459,15 +679,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 message: await encryptDirectMessage(text, key, sender, timestamp),
                 timestamp
             };
+            if (packet.message.length > MAX_DIRECT_PACKET_LENGTH) {
+                throw new Error('This encrypted attachment is too large to send through the current Gun relay.');
+            }
             if (generation !== gunObserverGeneration || peerId !== app.state.currentConversation) return;
-            await new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => reject(new Error('The Gun relays did not confirm the message.')), 15000);
-                room.set(packet, acknowledgement => {
-                    clearTimeout(timeout);
-                    if (acknowledgement?.err) reject(new Error('The message could not be saved to the Gun relays.'));
-                    else resolve();
+            if (!window.navigator.onLine) {
+                //notes Monitor navigator connection state here and queue only the locally encrypted packet while offline.
+                queueEncryptedMessage(getDirectMessageRoomId(sender, peerId), packet);
+                document.getElementById('messageInput').value = '';
+                setMediaStatus('');
+                document.getElementById('direct-message-key-status').textContent =
+                    'Encrypted message saved on this device and will send when the connection returns.';
+                return;
+            }
+            try {
+                await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error('The Gun relays did not confirm the message.')), 15000);
+                    room.set(packet, acknowledgement => {
+                        clearTimeout(timeout);
+                        if (acknowledgement?.err) reject(new Error('The message could not be saved to the Gun relays.'));
+                        else resolve();
+                    });
                 });
-            });
+            } catch (error) {
+                queueEncryptedMessage(getDirectMessageRoomId(sender, peerId), packet);
+                document.getElementById('messageInput').value = '';
+                document.getElementById('direct-message-key-status').textContent =
+                    'Gun did not confirm the encrypted message. It is saved on this device and will retry when online.';
+                return;
+            }
             document.getElementById('messageInput').value = '';
             document.getElementById('direct-message-key-status').textContent =
                 'Encrypted message submitted to Gun. Remote sync may take time; relays can see sender and timestamp, not text.';
@@ -476,15 +716,311 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function serverStorageKey() {
+        const username = app.state.currentUser?.username;
+        if (!username) throw new Error('Sign in before managing private servers.');
+        return `${SERVER_STORAGE_PREFIX}${username}`;
+    }
+
+    function getJoinedServers() {
+        const stored = window.localStorage.getItem(serverStorageKey());
+        if (stored === null) return [];
+        let servers;
+        try {
+            servers = JSON.parse(stored);
+        } catch (error) {
+            throw new Error('The saved server list is unreadable; it was left untouched.');
+        }
+        if (!Array.isArray(servers) || servers.some(server =>
+            !server || typeof server.id !== 'string' || !/^blocktalk-server-v1:[a-f0-9]{64}$/.test(server.id) ||
+            typeof server.code !== 'string' || !/^[A-Za-z0-9_-]{32}$/.test(server.code) ||
+            typeof server.name !== 'string' || !server.name
+        )) {
+            throw new Error('The saved server list is invalid; it was left untouched.');
+        }
+        return servers;
+    }
+
+    function saveJoinedServers(servers) {
+        window.localStorage.setItem(serverStorageKey(), JSON.stringify(servers));
+    }
+
+    async function getServerId(inviteCode) {
+        const digest = await window.crypto.subtle.digest(
+            'SHA-256',
+            new TextEncoder().encode(`BlockTalk private server v1:${inviteCode}`)
+        );
+        const hex = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+        return `blocktalk-server-v1:${hex}`;
+    }
+
+    function generateInviteCode() {
+        const bytes = window.crypto.getRandomValues(new Uint8Array(24));
+        return bytesToBase64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+    }
+
+    function serverMessageSignaturePayload(serverId, packet) {
+        return JSON.stringify([
+            serverId,
+            packet.sender,
+            packet.senderPub,
+            packet.timestamp,
+            packet.message
+        ]);
+    }
+
+    function closeActiveServer() {
+        activeServerGeneration += 1;
+        if (activeServerObserver) activeServerObserver.off();
+        activeServerObserver = null;
+        activeServer = null;
+        activeServerKey = null;
+        app.serverMessagesReady = false;
+    }
+
+    function renderServerList() {
+        const list = document.getElementById('serverList');
+        list.replaceChildren();
+        let servers;
+        try {
+            servers = getJoinedServers();
+        } catch (error) {
+            document.getElementById('serverStatus').textContent = error.message;
+            return;
+        }
+        if (!servers.length) {
+            const empty = document.createElement('div');
+            empty.className = 'empty-list-note';
+            empty.textContent = 'No servers yet. Create one or join with an invite code.';
+            list.appendChild(empty);
+            return;
+        }
+        servers.forEach(server => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'server-item';
+            button.textContent = `# ${server.name}`;
+            button.classList.toggle('active', app.state.currentServer?.id === server.id);
+            button.addEventListener('click', () => openServerConversation(server));
+            list.appendChild(button);
+        });
+    }
+
+    async function addServerWithInviteCode(inviteCode, expectedName = '') {
+        const normalizedCode = inviteCode.trim();
+        if (!/^[A-Za-z0-9_-]{32}$/.test(normalizedCode)) {
+            throw new Error('Invite codes must be 32 characters. Check that the full code was copied.');
+        }
+        const id = await getServerId(normalizedCode);
+        const metadata = await app.readGunNode(gun.get(id).get('meta'));
+        if (!metadata || typeof metadata.name !== 'string' ||
+            metadata.name.length < 1 || metadata.name.length > 40) {
+            throw new Error('No server was found for that invite code.');
+        }
+        if (expectedName && metadata.name !== expectedName) {
+            throw new Error('The newly created server could not be verified on the relay.');
+        }
+        const servers = getJoinedServers();
+        const existing = servers.find(server => server.id === id);
+        if (!existing) {
+            servers.push({ id, code: normalizedCode, name: metadata.name });
+            saveJoinedServers(servers);
+        }
+        renderServerList();
+        return existing || { id, code: normalizedCode, name: metadata.name };
+    }
+
+    async function createPrivateServer() {
+        const nameInput = document.getElementById('serverNameInput');
+        const status = document.getElementById('serverStatus');
+        const name = nameInput.value.trim();
+        if (name.length < 2 || name.length > 40) {
+            status.textContent = 'Server names must be 2–40 characters.';
+            return;
+        }
+        const button = document.getElementById('createServerButton');
+        button.disabled = true;
+        status.textContent = 'Creating a private invite-code server...';
+        try {
+            const code = generateInviteCode();
+            const id = await getServerId(code);
+            await app.writeGunNode(gun.get(id).get('meta'), {
+                name,
+                createdBy: app.state.currentUser.username,
+                createdAt: Date.now()
+            });
+            const server = await addServerWithInviteCode(code, name);
+            const result = document.getElementById('serverInviteResult');
+            document.getElementById('serverInviteCode').textContent = server.code;
+            result.classList.remove('hidden');
+            status.textContent = `Created ${server.name}. Share the invite code only with people you trust.`;
+            nameInput.value = '';
+            await openServerConversation(server);
+        } catch (error) {
+            status.textContent = `Could not create the server: ${error.message}`;
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    async function joinPrivateServer() {
+        const input = document.getElementById('serverInviteInput');
+        const status = document.getElementById('serverStatus');
+        const button = document.getElementById('joinServerButton');
+        button.disabled = true;
+        status.textContent = 'Checking the invite code...';
+        try {
+            const server = await addServerWithInviteCode(input.value);
+            input.value = '';
+            status.textContent = `Joined ${server.name}. The invite code is saved only on this device.`;
+            await openServerConversation(server);
+        } catch (error) {
+            status.textContent = error.message;
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    async function openServerConversation(server) {
+        closeGunConversation();
+        closeActiveServer();
+        const generation = activeServerGeneration;
+        activeServer = server;
+        app.state.currentConversation = null;
+        app.state.currentServer = { id: server.id, name: server.name };
+        app.serverMessagesReady = false;
+        const messagesKey = `server:${server.id}`;
+        app.state.messages[messagesKey] = [];
+        window.dispatchEvent(new CustomEvent('blocktalk:conversation-selected', { detail: { peer: null } }));
+        app.renderDMList();
+        app.renderChatArea();
+        setMediaStatus('');
+        document.getElementById('serverStatus').textContent = `Connecting to ${server.name}...`;
+        try {
+            const key = await deriveConversationKey(server.code, server.id);
+            if (generation !== activeServerGeneration || activeServer?.id !== server.id) return;
+            activeServerKey = key;
+            const observer = gun.get(server.id).get('messages').map();
+            activeServerObserver = observer;
+            const seenMessages = new Set();
+            observer.on(async (packet, messageId) => {
+                if (generation !== activeServerGeneration || activeServer?.id !== server.id ||
+                    !packet || typeof messageId !== 'string' || seenMessages.has(messageId) ||
+                    typeof packet.sender !== 'string' || !/^[a-zA-Z0-9_.-]{3,32}$/.test(packet.sender) ||
+                    typeof packet.senderPub !== 'string' || typeof packet.signature !== 'string' ||
+                    typeof packet.message !== 'string' || packet.message.length > MAX_DIRECT_PACKET_LENGTH ||
+                    !Number.isFinite(packet.timestamp)) return;
+                seenMessages.add(messageId);
+                if (seenMessages.size > 10000) seenMessages.delete(seenMessages.values().next().value);
+                try {
+                    const expectedPub = await app.lookupUserPub(packet.sender);
+                    if (expectedPub !== packet.senderPub) return;
+                    const verified = await app.getGunSea().verify(packet.signature, packet.senderPub);
+                    if (verified !== serverMessageSignaturePayload(server.id, packet)) return;
+                    const plaintext = await decryptDirectMessage(packet.message, key, packet.sender, packet.timestamp);
+                    const { content, attachment } = decodeMessageContent(plaintext);
+                    if (generation !== activeServerGeneration) return;
+                    const messages = app.state.messages[messagesKey];
+                    messages.push({ id: messageId, sender: packet.sender, content, attachment, timestamp: packet.timestamp, status: 'sent' });
+                    messages.sort((left, right) => left.timestamp - right.timestamp);
+                    if (messages.length > MAX_RENDERED_SERVER_MESSAGES) {
+                        messages.splice(0, messages.length - MAX_RENDERED_SERVER_MESSAGES);
+                    }
+                    app.renderMessages();
+                } catch (error) {
+                    setMediaStatus('A server message could not be decrypted. Confirm the invite code is correct.');
+                }
+            });
+            app.serverMessagesReady = true;
+            app.renderChatArea();
+            document.getElementById('serverStatus').textContent = `Connected to ${server.name}.`;
+        } catch (error) {
+            if (generation !== activeServerGeneration) return;
+            document.getElementById('serverStatus').textContent = `Could not open this server: ${error.message}`;
+        }
+    }
+
+    async function sendServerMessage(content) {
+        if (!activeServer || !activeServerKey || !activeServerObserver) {
+            setMediaStatus('Open a private server before sending.');
+            return;
+        }
+        let plaintext;
+        try {
+            plaintext = encodeMessageContent(content);
+        } catch (error) {
+            setMediaStatus(error.message);
+            return;
+        }
+        if (!plaintext || (typeof content === 'string' && plaintext.length > 2000)) return;
+        const server = activeServer;
+        const generation = activeServerGeneration;
+        const key = activeServerKey;
+        const pair = app.gunUser?._?.sea;
+        if (!pair?.pub) {
+            setMediaStatus('Sign in again before posting to this server.');
+            return;
+        }
+        const packet = {
+            sender: app.state.currentUser.username,
+            senderPub: pair.pub,
+            timestamp: Date.now()
+        };
+        try {
+            packet.message = await encryptDirectMessage(plaintext, key, packet.sender, packet.timestamp);
+            if (generation !== activeServerGeneration || activeServer?.id !== server.id) return;
+            if (packet.message.length > MAX_DIRECT_PACKET_LENGTH) {
+                throw new Error('This encrypted attachment is too large for the current Gun relay.');
+            }
+            packet.signature = await app.getGunSea().sign(serverMessageSignaturePayload(server.id, packet), pair);
+            if (typeof packet.signature !== 'string') throw new Error('The server message could not be signed.');
+            if (generation !== activeServerGeneration || activeServer?.id !== server.id) return;
+            if (!window.navigator.onLine) {
+                queueEncryptedMessage(server.id, packet);
+                document.getElementById('messageInput').value = '';
+                setMediaStatus('Encrypted server message queued on this device; it will send when online.');
+                return;
+            }
+            await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('The Gun relay did not confirm the server message.')), 15000);
+                gun.get(server.id).get('messages').set(packet, acknowledgement => {
+                    clearTimeout(timeout);
+                    if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
+                    else resolve();
+                });
+            });
+            if (activeServer?.id === server.id) setMediaStatus('');
+            document.getElementById('messageInput').value = '';
+        } catch (error) {
+            if (error.message.includes('did not confirm') || error.message.includes('could not be saved')) {
+                try {
+                    queueEncryptedMessage(server.id, packet);
+                    document.getElementById('messageInput').value = '';
+                    setMediaStatus('Gun did not confirm the server message. It is queued on this device for retry.');
+                    return;
+                } catch (queueError) {
+                    setMediaStatus(`Could not queue server message: ${queueError.message}`);
+                    return;
+                }
+            }
+            setMediaStatus(`Could not send server message: ${error.message}`);
+        }
+    }
+
     app.directMessages = { openConversation: openGunConversation, sendMessage: sendDirectMessage };
     app.closeDirectMessage = closeGunConversation;
     app.directMessageReady = false;
     try {
-        if (typeof window.Gun !== 'function') throw new Error('GunDB client script did not load.');
-        gun = window.Gun({ peers: gunRelays, axe: false });
+        if (!app.gun && typeof window.Gun !== 'function') throw new Error('GunDB client script did not load.');
+        gun = app.gun || window.Gun({ peers: gunRelays, axe: false });
     } catch (error) {
         document.getElementById('direct-message-key-status').textContent = error.message;
     }
+    //notes Monitor browser connectivity changes and immediately trigger the sequential cache flush on reconnection.
+    window.addEventListener('online', () => {
+        flushPendingMessages();
+    });
+    if (window.navigator.onLine) flushPendingMessages();
 
     window.addEventListener('blocktalk:conversation-selected', event => {
         const nextPeer = event.detail?.peer || null;
@@ -556,21 +1092,20 @@ document.addEventListener('DOMContentLoaded', () => {
             : "Don't have an account? ";
         authToggle.textContent = isSignUp ? 'Sign In' : 'Sign Up';
         document.getElementById('usernameLabel').textContent = `${mode} Username`;
-        document.getElementById('emailLabel').textContent = `${mode} Email`;
         document.getElementById('passwordLabel').textContent = `${mode} Password`;
         document.getElementById('confirmPasswordLabel').textContent = `${mode} Confirm Password`;
         document.getElementById('authUsername').placeholder = isSignUp ? 'Choose a username' : 'Enter your username';
-        document.getElementById('auth-email').placeholder = isSignUp ? 'Enter your email' : 'Enter your account email';
-        document.getElementById('authPassword').placeholder = isSignUp ? 'Create a password' : 'Enter your password';
+        document.getElementById('authPassword').placeholder = isSignUp ? 'Create a strong password' : 'Enter your password';
         document.getElementById('authConfirmPassword').placeholder = 'Confirm password';
-        document.getElementById('auth-email').required = isSignUp;
         document.getElementById('authConfirmPassword').required = isSignUp;
+        document.getElementById('authPassword').autocomplete = isSignUp ? 'new-password' : 'current-password';
     }
 
     authToggle.addEventListener('click', () => {
         app.auth.toggleMode();
         updateAuthCopy();
     });
+    window.addEventListener('blocktalk:auth-mode-changed', updateAuthCopy);
     updateAuthCopy();
 
     window.addEventListener('blocktalk:database-change', () => {
@@ -608,6 +1143,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!url) return true;
 
         try {
+            if (/^data:image\/(webp|jpeg|png);base64,[A-Za-z0-9+/]+=*$/.test(url) &&
+                url.length <= MAX_IMAGE_DATA_URL_LENGTH) {
+                profilePicture.style.backgroundImage = `url("${url}")`;
+                profilePicture.textContent = '';
+                profilePicture.classList.add('has-image');
+                return true;
+            }
             const imageUrl = new URL(url, window.location.href);
             if (imageUrl.protocol !== 'http:' && imageUrl.protocol !== 'https:') return false;
             profilePicture.style.backgroundImage = `url("${imageUrl.href}")`;
@@ -634,7 +1176,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function openSettings() {
         const profile = currentProfile();
-        settingsPfpUrl.value = profile.profilePictureUrl || '';
+        profilePictureSelectionGeneration += 1;
+        const isEmbeddedPicture = /^data:image\/(webp|jpeg|png);base64,/.test(profile.profilePictureUrl);
+        settingsPfpUrl.value = isEmbeddedPicture ? '' : profile.profilePictureUrl || '';
+        pendingProfilePictureDataUrl = isEmbeddedPicture ? profile.profilePictureUrl : '';
+        profilePictureProcessing = false;
+        document.getElementById('profilePictureDropzoneText').textContent =
+            isEmbeddedPicture ? 'Current picture will be kept (drop a replacement here)' :
+                'Drop a picture here or browse (WebP/JPEG/PNG, max 160 KB)';
         settingsTheme.value = profile.theme || 'terminal';
         settingsStatus.textContent = '';
         applyTheme(settingsTheme.value);
@@ -650,10 +1199,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function saveSettings() {
         if (!app.state.currentUser) return;
+        if (profilePictureProcessing) {
+            settingsStatus.textContent = 'Wait for the profile picture compression to finish.';
+            return;
+        }
 
         const rawUrl = settingsPfpUrl.value.trim();
         let profilePictureUrl = '';
-        if (rawUrl) {
+        if (pendingProfilePictureDataUrl) {
+            profilePictureUrl = pendingProfilePictureDataUrl;
+        } else if (rawUrl) {
             try {
                 const parsedUrl = new URL(rawUrl, window.location.href);
                 if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') throw new Error('Unsupported URL');
@@ -666,11 +1221,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const theme = applyTheme(settingsTheme.value);
-            await app.apiRequest('/api/profile', {
-                method: 'PATCH',
-                body: JSON.stringify({ profilePictureUrl, theme })
-            });
-            await app.refreshAndRender();
+            await app.updateProfile({ profilePictureUrl, theme });
             syncUserPreferences();
             settingsStatus.textContent = 'Settings saved.';
         } catch (error) {
@@ -681,6 +1232,47 @@ document.addEventListener('DOMContentLoaded', () => {
     settingsButton.addEventListener('click', openSettings);
     document.getElementById('settings-close').addEventListener('click', closeSettings);
     document.getElementById('settings-save').addEventListener('click', saveSettings);
+    const profilePictureFile = document.getElementById('settings-pfp-file');
+    const profilePictureDropzone = document.getElementById('profilePictureDropzone');
+    async function setPendingProfilePicture(file) {
+        const generation = ++profilePictureSelectionGeneration;
+        profilePictureProcessing = true;
+        settingsStatus.textContent = 'Compressing profile picture...';
+        try {
+            const picture = await compressImageFile(file, 160 * 1024, 512);
+            if (generation !== profilePictureSelectionGeneration) return;
+            pendingProfilePictureDataUrl = picture.dataUrl;
+            settingsPfpUrl.value = '';
+            document.getElementById('profilePictureDropzoneText').textContent = `${file.name} is ready (compressed).`;
+            settingsStatus.textContent = '';
+        } catch (error) {
+            if (generation === profilePictureSelectionGeneration) settingsStatus.textContent = error.message;
+        } finally {
+            if (generation === profilePictureSelectionGeneration) profilePictureProcessing = false;
+        }
+    }
+    profilePictureFile.addEventListener('change', () => {
+        const [file] = profilePictureFile.files || [];
+        if (file) setPendingProfilePicture(file);
+        profilePictureFile.value = '';
+    });
+    settingsPfpUrl.addEventListener('input', () => {
+        profilePictureSelectionGeneration += 1;
+        profilePictureProcessing = false;
+        pendingProfilePictureDataUrl = '';
+    });
+    ['dragenter', 'dragover'].forEach(type => profilePictureDropzone.addEventListener(type, event => {
+        event.preventDefault();
+        profilePictureDropzone.classList.add('dragging');
+    }));
+    ['dragleave', 'drop'].forEach(type => profilePictureDropzone.addEventListener(type, event => {
+        event.preventDefault();
+        profilePictureDropzone.classList.remove('dragging');
+    }));
+    profilePictureDropzone.addEventListener('drop', event => {
+        const [file] = event.dataTransfer?.files || [];
+        if (file) setPendingProfilePicture(file);
+    });
     settingsTheme.addEventListener('change', () => applyTheme(settingsTheme.value));
     settingsModal.addEventListener('click', event => {
         if (event.target === settingsModal) closeSettings();
@@ -689,11 +1281,182 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.key === 'Escape' && !settingsModal.classList.contains('hidden')) closeSettings();
     });
 
+    const emojiPicker = document.getElementById('emojiPicker');
+    commonEmojis.forEach(emoji => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'emoji-choice';
+        button.textContent = emoji;
+        button.setAttribute('aria-label', `Insert ${emoji}`);
+        button.addEventListener('click', () => {
+            const input = document.getElementById('messageInput');
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+            input.setRangeText(emoji, start, end, 'end');
+            input.focus();
+            emojiPicker.classList.add('hidden');
+        });
+        emojiPicker.appendChild(button);
+    });
+    document.getElementById('emojiPickerButton').addEventListener('click', () => {
+        emojiPicker.classList.toggle('hidden');
+    });
+    document.getElementById('attachButton').addEventListener('click', () => {
+        document.getElementById('attachmentInput').click();
+    });
+    document.getElementById('attachmentInput').addEventListener('change', async event => {
+        const files = [...(event.target.files || [])];
+        event.target.value = '';
+        await sendImageFiles(files);
+    });
+
+    async function sendImageFiles(files) {
+        if (!files.length) return;
+        const target = activeConversationToken();
+        if (!target) {
+            setMediaStatus('Choose a direct conversation or server before attaching an image.');
+            return;
+        }
+        for (const file of files) {
+            try {
+                setMediaStatus(`Compressing ${file.name}...`);
+                const image = await compressImageFile(file);
+                if (target !== activeConversationToken()) {
+                    throw new Error('The selected conversation changed; the image was not sent.');
+                }
+                await sendDirectMessage({ kind: 'image', ...image });
+            } catch (error) {
+                setMediaStatus(error.message);
+                return;
+            }
+        }
+    }
+
+    const recordVoiceButton = document.getElementById('recordVoiceButton');
+    recordVoiceButton.addEventListener('click', async () => {
+        if (voiceRecorder?.state === 'recording') {
+            voiceRecorder.stop();
+            recordVoiceButton.disabled = true;
+            recordVoiceButton.textContent = 'Saving...';
+            return;
+        }
+        if (!navigator.mediaDevices?.getUserMedia || typeof window.MediaRecorder !== 'function') {
+            setMediaStatus('Voice snippets are unavailable in this browser. Use HTTPS and a supported browser.');
+            return;
+        }
+        if (!app.state.currentConversation && !app.state.currentServer) {
+            setMediaStatus('Open a direct conversation or server before recording.');
+            return;
+        }
+        const target = activeConversationToken();
+        try {
+            recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            if (target !== activeConversationToken()) {
+                recordingStream.getTracks().forEach(track => track.stop());
+                recordingStream = null;
+                setMediaStatus('The selected conversation changed; recording was cancelled.');
+                return;
+            }
+            voiceRecordingTarget = target;
+            const mimeType = [
+                'audio/webm;codecs=opus',
+                'audio/webm',
+                'audio/ogg;codecs=opus',
+                'audio/mp4'
+            ].find(type => window.MediaRecorder.isTypeSupported(type));
+            voiceRecorder = mimeType
+                ? new window.MediaRecorder(recordingStream, { mimeType, audioBitsPerSecond: 64000 })
+                : new window.MediaRecorder(recordingStream, { audioBitsPerSecond: 64000 });
+            voiceChunks = [];
+            voiceRecorder.addEventListener('dataavailable', event => {
+                if (event.data?.size) voiceChunks.push(event.data);
+            });
+            voiceRecorder.addEventListener('error', () => {
+                setMediaStatus('The voice recording failed.');
+                if (voiceRecorder?.state === 'recording') voiceRecorder.stop();
+            }, { once: true });
+            voiceRecorder.addEventListener('stop', async () => {
+                clearTimeout(voiceRecordingTimer);
+                recordingStream?.getTracks().forEach(track => track.stop());
+                recordingStream = null;
+                const selectedRecorder = voiceRecorder;
+                voiceRecorder = null;
+                const recordedTarget = voiceRecordingTarget;
+                voiceRecordingTarget = null;
+                recordVoiceButton.disabled = false;
+                recordVoiceButton.textContent = 'Record';
+                try {
+                    if (recordedTarget !== activeConversationToken()) {
+                        throw new Error('The selected conversation changed; the recording was not sent.');
+                    }
+                    const type = selectedRecorder?.mimeType?.split(';')[0] || 'audio/webm';
+                    if (!/^audio\/(webm|mp4|ogg)$/.test(type)) throw new Error('This browser produced an unsupported audio format.');
+                    const blob = new Blob(voiceChunks, { type });
+                    voiceChunks = [];
+                    if (!blob.size) throw new Error('The voice recording was empty.');
+                    if (blob.size > 180 * 1024) throw new Error('Voice snippets must be 20 seconds or less and under 180 KB.');
+                    const dataUrl = await readFileAsDataUrl(blob);
+                    validateAttachment({ kind: 'voice', dataUrl, name: 'Voice snippet' });
+                    await sendDirectMessage({ kind: 'voice', dataUrl, name: 'Voice snippet' });
+                } catch (error) {
+                    setMediaStatus(error.message);
+                }
+            }, { once: true });
+            voiceRecorder.start(250);
+            recordVoiceButton.textContent = 'Stop (20s max)';
+            setMediaStatus('Recording voice snippet…');
+            voiceRecordingTimer = window.setTimeout(() => {
+                if (voiceRecorder?.state === 'recording') voiceRecorder.stop();
+            }, 20000);
+        } catch (error) {
+            recordingStream?.getTracks().forEach(track => track.stop());
+            recordingStream = null;
+            voiceRecorder = null;
+            voiceRecordingTarget = null;
+            setMediaStatus(`Could not start recording: ${error.message}`);
+        }
+    });
+
+    function handleMediaDrop(event) {
+        event.preventDefault();
+        event.currentTarget.classList.remove('dragging');
+        const files = [...(event.dataTransfer?.files || [])];
+        if (files.length) sendImageFiles(files.filter(file => file.type.startsWith('image/')));
+    }
+    const mediaDropTargets = [document.getElementById('messageLog'), document.querySelector('.input-frame')];
+    mediaDropTargets.forEach(target => {
+        ['dragenter', 'dragover'].forEach(type => target.addEventListener(type, event => {
+            if (![...(event.dataTransfer?.items || [])].some(item => item.kind === 'file')) return;
+            event.preventDefault();
+            target.classList.add('dragging');
+        }));
+        ['dragleave', 'drop'].forEach(type => target.addEventListener(type, event => {
+            event.preventDefault();
+            target.classList.remove('dragging');
+        }));
+        target.addEventListener('drop', handleMediaDrop);
+    });
+
+    document.getElementById('createServerButton').addEventListener('click', createPrivateServer);
+    document.getElementById('joinServerButton').addEventListener('click', joinPrivateServer);
+    document.getElementById('serverInviteInput').addEventListener('keydown', event => {
+        if (event.key === 'Enter') joinPrivateServer();
+    });
+    document.getElementById('copyServerInvite').addEventListener('click', async () => {
+        const code = document.getElementById('serverInviteCode').textContent;
+        try {
+            await navigator.clipboard.writeText(code);
+            document.getElementById('serverStatus').textContent = 'Invite code copied.';
+        } catch (error) {
+            document.getElementById('serverStatus').textContent =
+                'Clipboard access was blocked. Select and copy the invite code manually.';
+        }
+    });
+
     const originalShowApp = app.showApp;
     app.showApp = function(...args) {
         const result = originalShowApp.apply(this, args);
         syncUserPreferences();
-        ensureSignalingConnection();
         return result;
     };
     syncUserPreferences();
@@ -709,6 +1472,12 @@ document.addEventListener('DOMContentLoaded', () => {
         element.classList.remove('has-image');
         if (!imageUrl) return;
         try {
+            if (/^data:image\/(webp|jpeg|png);base64,[A-Za-z0-9+/]+=*$/.test(imageUrl) &&
+                imageUrl.length <= MAX_IMAGE_DATA_URL_LENGTH) {
+                element.style.backgroundImage = `url("${imageUrl}")`;
+                element.classList.add('has-image');
+                return;
+            }
             const url = new URL(imageUrl, window.location.href);
             if (!['http:', 'https:'].includes(url.protocol)) return;
             element.style.backgroundImage = `url("${url.href}")`;
@@ -718,16 +1487,201 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function ensureSignalingConnection() {
-        const username = app.state.currentUser?.username;
-        if (!username || typeof window.io !== 'function') return;
-        if (!socket) {
-            const signalingURL = window.BLOCKTALK_SIGNALING_URL || window.location.origin;
-            socket = window.io(signalingURL, { autoConnect: true });
-            bindSignalingEvents();
+    function setProfileModalAvatar(element, username, imageUrl) {
+        element.textContent = initialsFor(username);
+        element.style.backgroundImage = '';
+        element.classList.remove('has-image');
+        if (!imageUrl) return;
+        if ((/^data:image\/(webp|jpeg|png);base64,[A-Za-z0-9+/]+=*$/.test(imageUrl) &&
+                imageUrl.length <= MAX_IMAGE_DATA_URL_LENGTH)) {
+            element.textContent = '';
+            element.style.backgroundImage = `url("${imageUrl}")`;
+            element.classList.add('has-image');
+            return;
         }
-        if (socket.connected && app.sessionToken) registerSocketUser(username);
+        try {
+            const url = new URL(imageUrl, window.location.href);
+            if (!['http:', 'https:'].includes(url.protocol)) return;
+            element.textContent = '';
+            element.style.backgroundImage = `url("${url.href}")`;
+            element.classList.add('has-image');
+        } catch (error) {
+            return;
+        }
     }
+
+    async function readVerifiedBadges(username, publicKey) {
+        const ownerPub = await app.lookupUserPub(OWNER_USERNAME);
+        if (!ownerPub) return [];
+        const records = await app.readGunNode(
+            gun.get('blocktalk-v1').get('badges').get(publicKey)
+        );
+        const sea = app.getGunSea();
+        const verifiedBadges = new Set();
+        for (const envelope of Object.values(records || {})) {
+            if (!envelope || typeof envelope !== 'object' || typeof envelope.signature !== 'string') continue;
+            try {
+                const signedPayload = await sea.verify(envelope.signature, ownerPub);
+                if (typeof signedPayload !== 'string') continue;
+                const payload = JSON.parse(signedPayload);
+                if (payload.recipientPub !== publicKey || payload.issuerPub !== ownerPub ||
+                    payload.recipient !== username ||
+                    !['met-owner', 'owner-friend'].includes(payload.badge) ||
+                    typeof payload.id !== 'string' || !Number.isFinite(payload.timestamp)) continue;
+                verifiedBadges.add(payload.badge);
+            } catch (error) {
+                console.warn(`Ignoring an invalid owner badge for ${username}:`, error);
+            }
+        }
+        return [...verifiedBadges];
+    }
+
+    function appendBadge(container, label, styleName) {
+        const badge = document.createElement('span');
+        badge.className = `profile-badge ${styleName}`;
+        badge.textContent = label;
+        container.appendChild(badge);
+    }
+
+    async function openProfile(username) {
+        if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username)) return;
+        const modal = document.getElementById('profileModal');
+        const title = document.getElementById('profileModalTitle');
+        const badges = document.getElementById('profileModalBadges');
+        const status = document.getElementById('profileModalStatus');
+        const ownerTools = document.getElementById('ownerBadgeTools');
+        const generation = ++profileModalGeneration;
+        badgeTarget = null;
+        title.textContent = `@${username}`;
+        badges.replaceChildren();
+        status.textContent = 'Loading public profile…';
+        ownerTools.classList.toggle('hidden', app.state.currentUser?.username !== OWNER_USERNAME);
+        document.getElementById('badgeTargetStatus').textContent = '';
+        document.getElementById('badgeTargetUsername').value = '';
+        document.getElementById('awardBadgeButton').disabled = true;
+        setProfileModalAvatar(document.getElementById('profileModalPicture'), username, '');
+        modal.classList.remove('hidden');
+        try {
+            const publicKey = await app.lookupUserPub(username);
+            if (!publicKey) throw new Error('No registered account was found for that username.');
+            const profile = await app.readProfileByPub(publicKey);
+            if (generation !== profileModalGeneration) return;
+            setProfileModalAvatar(document.getElementById('profileModalPicture'), username, profile.profilePictureUrl);
+            if (profile.accountCreatedAt > 0 && profile.accountCreatedAt < FOUNDER_BADGE_CUTOFF) {
+                appendBadge(badges, 'Early OG · Joined before 2027', 'founder-badge');
+            }
+            if (username === OWNER_USERNAME) appendBadge(badges, 'BlockTalk Owner', 'owner-badge');
+            let claims = [];
+            let badgeError = '';
+            try {
+                claims = await readVerifiedBadges(username, publicKey);
+            } catch (error) {
+                badgeError = `Owner-issued badges could not be verified: ${error.message}`;
+            }
+            if (generation !== profileModalGeneration) return;
+            if (claims.includes('met-owner')) appendBadge(badges, 'Met the Owner', 'met-owner-badge');
+            if (claims.includes('owner-friend')) appendBadge(badges, "Owner's Friend", 'friend-badge');
+            if (!badges.childElementCount) {
+                const noBadges = document.createElement('span');
+                noBadges.className = 'profile-no-badges';
+                noBadges.textContent = 'No badges yet';
+                badges.appendChild(noBadges);
+            }
+            status.textContent = badgeError;
+        } catch (error) {
+            if (generation === profileModalGeneration) status.textContent = error.message;
+        }
+    }
+
+    document.getElementById('my-pfp').addEventListener('click', () => {
+        const username = app.state.currentUser?.username;
+        if (username) openProfile(username);
+    });
+    document.getElementById('my-pfp').addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        const username = app.state.currentUser?.username;
+        if (username) openProfile(username);
+    });
+    document.addEventListener('click', event => {
+        const target = event.target.closest('[data-profile-username]');
+        if (target) openProfile(target.dataset.profileUsername);
+    });
+    document.getElementById('profileModalClose').addEventListener('click', () => {
+        profileModalGeneration += 1;
+        document.getElementById('profileModal').classList.add('hidden');
+    });
+    document.getElementById('profileModal').addEventListener('click', event => {
+        if (event.target === event.currentTarget) {
+            profileModalGeneration += 1;
+            event.currentTarget.classList.add('hidden');
+        }
+    });
+    document.getElementById('findBadgeTarget').addEventListener('click', async () => {
+        const input = document.getElementById('badgeTargetUsername');
+        const status = document.getElementById('badgeTargetStatus');
+        const button = document.getElementById('awardBadgeButton');
+        button.disabled = true;
+        badgeTarget = null;
+        const username = input.value.trim();
+        try {
+            const publicKey = await app.lookupUserPub(username);
+            if (!publicKey) throw new Error('That username has not signed up for BlockTalk.');
+            if (input.value.trim() !== username) return;
+            badgeTarget = { username, publicKey };
+            status.textContent = `Found @${username}. Choose a badge and award it.`;
+            button.disabled = false;
+        } catch (error) {
+            if (input.value.trim() !== username) return;
+            status.textContent = error.message;
+        }
+    });
+    document.getElementById('badgeTargetUsername').addEventListener('input', () => {
+        badgeTarget = null;
+        document.getElementById('awardBadgeButton').disabled = true;
+        document.getElementById('badgeTargetStatus').textContent = '';
+    });
+    document.getElementById('badgeTargetUsername').addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        event.preventDefault();
+        document.getElementById('findBadgeTarget').click();
+    });
+    document.getElementById('awardBadgeButton').addEventListener('click', async () => {
+        const status = document.getElementById('badgeTargetStatus');
+        const button = document.getElementById('awardBadgeButton');
+        if (app.state.currentUser?.username !== OWNER_USERNAME || !badgeTarget) {
+            status.textContent = 'Only the ItsTerminal4404 account can award these badges.';
+            return;
+        }
+        button.disabled = true;
+        try {
+            const pair = app.gunUser?._?.sea;
+            const ownerPub = await app.lookupUserPub(OWNER_USERNAME);
+            if (!pair?.pub || pair.pub !== ownerPub) throw new Error('The owner account key could not be verified.');
+            const payload = {
+                id: window.crypto.randomUUID(),
+                badge: document.getElementById('badgeType').value,
+                recipientPub: badgeTarget.publicKey,
+                recipient: badgeTarget.username,
+                issuerPub: ownerPub,
+                timestamp: Date.now()
+            };
+            const signature = await app.getGunSea().sign(JSON.stringify(payload), pair);
+            if (typeof signature !== 'string') throw new Error('The badge award could not be signed.');
+            await app.writeGunNode(
+                gun.get('blocktalk-v1').get('badges').get(badgeTarget.publicKey).get(payload.id),
+                { signature }
+            );
+            status.textContent = `Awarded the ${payload.badge === 'met-owner' ? 'Met the Owner' : "Owner's Friend"} badge to @${badgeTarget.username}.`;
+            if (document.getElementById('profileModalTitle').textContent === `@${badgeTarget.username}`) {
+                await openProfile(badgeTarget.username);
+            }
+        } catch (error) {
+            status.textContent = `Could not award the badge: ${error.message}`;
+        } finally {
+            button.disabled = !badgeTarget;
+        }
+    });
 
     function serializeDescription(description) {
         if (typeof description.toJSON === 'function') return description.toJSON();
@@ -744,51 +1698,18 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    function registerSocketUser(username) {
-        if (!socket?.connected || !app.sessionToken || !username || registeredUser === username) return;
-        socket.emit('register-user', { token: app.sessionToken }, response => {
-            if (!response?.ok) {
-                callAlert.textContent = 'TERMINAL: Signaling registration failed. Refresh and sign in again.';
-                return;
-            }
-            registeredUser = username;
-            syncCallView();
-        });
-    }
-
-    function bindSignalingEvents() {
-        socket.on('connect', () => {
-            registeredUser = null;
-            if (app.sessionToken) registerSocketUser(app.state.currentUser?.username);
-        });
-        socket.on('data-updated', async () => {
-            if (!app.state.isAuthenticated) return;
-            try {
-                await app.refreshAndRender();
-                if (activeGunPeer && app.state.currentConversation !== activeGunPeer) {
-                    app.selectConversation(null);
-                }
-                syncUserPreferences();
-            } catch (error) {
-                callAlert.textContent = `TERMINAL: Could not refresh chat data. ${error.message}`;
-            }
-        });
-        socket.on('disconnect', () => {
-            registeredUser = null;
-            syncCallView();
-        });
-        socket.on('connect_error', () => {
-            callAlert.textContent = 'TERMINAL: Account service connection is unavailable.';
-            syncCallView();
-        });
-    }
-
     function setCallAvatar(element, initialsElement, username, imageUrl) {
         initialsElement.textContent = initialsFor(username);
         element.style.backgroundImage = '';
         element.classList.remove('has-image');
         if (!imageUrl) return;
         try {
+            if (/^data:image\/(webp|jpeg|png);base64,[A-Za-z0-9+/]+=*$/.test(imageUrl) &&
+                imageUrl.length <= MAX_IMAGE_DATA_URL_LENGTH) {
+                element.style.backgroundImage = `url("${imageUrl}")`;
+                element.classList.add('has-image');
+                return;
+            }
             const url = new URL(imageUrl, window.location.href);
             if (!['http:', 'https:'].includes(url.protocol)) return;
             element.style.backgroundImage = `url("${url.href}")`;
@@ -1235,6 +2156,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const originalSelectConversation = app.selectConversation;
     app.selectConversation = function(...args) {
         const result = originalSelectConversation.apply(this, args);
+        if (activeServer && !app.state.currentServer) closeActiveServer();
         updateCallAvailability();
         return result;
     };
@@ -1242,14 +2164,15 @@ document.addEventListener('DOMContentLoaded', () => {
     app.logout = async function(...args) {
         if (activeCall) finishCall(true);
         closeGunConversation();
+        closeActiveServer();
+        if (voiceRecorder?.state === 'recording') voiceRecorder.stop();
+        clearTimeout(voiceRecordingTimer);
+        recordingStream?.getTracks().forEach(track => track.stop());
+        recordingStream = null;
         app.directMessageCache = Object.create(null);
         app.directMessageReady = false;
         incomingCalls.clear();
-        if (socket) {
-            socket.disconnect();
-            socket = null;
-            registeredUser = null;
-        }
+        document.getElementById('profileModal').classList.add('hidden');
         const result = await originalLogout.apply(this, args);
         syncCallView();
         return result;
@@ -1257,7 +2180,6 @@ document.addEventListener('DOMContentLoaded', () => {
     syncCallView();
     window.addEventListener('blocktalk:authenticated', () => {
         syncUserPreferences();
-        ensureSignalingConnection();
+        renderServerList();
     });
-    if (app.state.isAuthenticated) ensureSignalingConnection();
 });
