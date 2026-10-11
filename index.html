@@ -1079,7 +1079,13 @@
             initializeGun: function() {
                 if (this.gun && typeof this.gun.user === 'function' && this.gunUser) return this.gun;
                 if (typeof window.Gun !== 'function') throw new Error('GunDB did not load. Refresh and try again.');
-                this.gun = window.Gun({ peers: ['https://peer.ooo/gun'], axe: false });
+                this.gun = window.Gun({
+                    peers: [
+                        'https://gun.rig.airfaas.com/gun',
+                        'https://peer.ooo/gun'
+                    ],
+                    axe: false
+                });
                 if (typeof this.gun.user !== 'function') {
                     this.gun = null;
                     throw new Error('Gun SEA authentication did not load. Check your connection and reload the page.');
@@ -1331,9 +1337,24 @@
                 this.state.currentUser = { username, pub };
                 this.gunProfileNode = this.gunUser.get('blocktalk').get('profile');
                 this.gunPresenceNode = this.gunUser.get('blocktalk').get('presence');
-                const profile = this.createUserProfile(await this.readGunNode(this.gunProfileNode) || {});
+                const savedProfile = await this.readGunNode(this.gunProfileNode);
+                const profile = this.createUserProfile(savedProfile || {});
                 if (isNewAccount && !profile.accountCreatedAt) profile.accountCreatedAt = Date.now();
-                await this.saveOwnProfile(profile);
+                if (isNewAccount || !savedProfile) {
+                    try {
+                        await this.saveOwnProfile(profile);
+                    } catch (error) {
+                        this.state.currentUser = null;
+                        this.gunProfileNode = null;
+                        this.gunPresenceNode = null;
+                        throw new Error(
+                            `Your Gun account was authenticated, but its initial profile was not acknowledged by a relay. ` +
+                            `Your account still exists; wait a moment and sign in again. ${error.message}`
+                        );
+                    }
+                } else {
+                    this.setOwnProfile(profile);
+                }
                 this.installGunObservers();
                 this.startPresence();
                 this.state.isAuthenticated = true;
@@ -1387,6 +1408,7 @@
             // ===== AUTHENTICATION MODULE =====
             auth: {
                 isSignUpMode: true,
+                isSubmitting: false,
 
                 toggleMode: function() {
                     this.isSignUpMode = !this.isSignUpMode;
@@ -1405,6 +1427,7 @@
 
                 handleSubmit: async function(e) {
                     e.preventDefault();
+                    if (this.isSubmitting) return;
                     const username = document.getElementById('authUsername').value.trim();
                     const password = document.getElementById('authPassword').value;
                     const confirmPassword = document.getElementById('authConfirmPassword').value;
@@ -1430,14 +1453,31 @@
                         return;
                     }
 
+                    this.isSubmitting = true;
+                    const submitButton = document.getElementById('authSubmitBtn');
+                    const toggleButton = document.getElementById('authToggleBtn');
+                    submitButton.disabled = true;
+                    toggleButton.disabled = true;
+                    submitButton.textContent = this.isSignUpMode ? 'Creating account…' : 'Signing in…';
                     try {
                         BlockTalk.initializeGun();
-                        const user = BlockTalk.gunUser;
+                        let user = BlockTalk.gunUser;
                         if (!user || typeof user.create !== 'function' || typeof user.auth !== 'function') {
                             throw new Error('Gun SEA account functions are unavailable. Reload the page and try again.');
                         }
                         BlockTalk.gunUser = user;
                         const isNewAccount = this.isSignUpMode;
+                        const existingSession = user.is;
+                        if (existingSession?.pub) {
+                            if (existingSession.alias === username) {
+                                await BlockTalk.activateGunAccount(existingSession.alias, existingSession);
+                                document.getElementById('authForm').reset();
+                                return;
+                            }
+                            user.leave();
+                            user = BlockTalk.gun.user();
+                            BlockTalk.gunUser = user;
+                        }
                         if (isNewAccount) {
                             await new Promise((resolve, reject) => {
                                 //notes Gun SEA derives the account cryptographic keypair from the username and password during account creation.
@@ -1466,6 +1506,11 @@
                             : 'passwordError';
                         //notes Render Gun registration and sign-in errors in the visible form feedback here.
                         this.showError(target, message);
+                    } finally {
+                        this.isSubmitting = false;
+                        submitButton.disabled = false;
+                        toggleButton.disabled = false;
+                        submitButton.textContent = this.isSignUpMode ? 'Sign Up' : 'Sign In';
                     }
                 },
 
