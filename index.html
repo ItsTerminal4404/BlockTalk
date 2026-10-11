@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="logo.png">
     <title>BlockTalk - Real-Time Chat Application</title>
     <style>
         * {
@@ -729,33 +730,36 @@
             color: #b9bbbe;
         }
     </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <!-- ===== AUTHENTICATION GATEWAY ===== -->
     <div class="auth-container" id="authContainer">
         <div class="auth-box">
             <div class="auth-header">
+                <img class="brand-logo brand-logo-auth" src="logo.png" alt="BlockTalk logo">
                 <h1 class="auth-title">BlockTalk</h1>
                 <p class="auth-subtitle" id="authModeSubtitle">Sign up to get started</p>
             </div>
             <form id="authForm">
+                <h2 class="auth-form-title" id="authFormTitle">Sign Up</h2>
                 <div class="form-group">
-                    <label class="form-label">Username</label>
+                    <label class="form-label" for="authUsername" id="usernameLabel">Sign Up Username</label>
                     <input type="text" class="form-input" id="authUsername" placeholder="Choose a username" required>
                     <div class="form-error" id="usernameError"></div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Email</label>
-                    <input type="email" class="form-input" id="authEmail" placeholder="Enter your email" required>
+                    <label class="form-label" for="auth-email" id="emailLabel">Sign Up Email</label>
+                    <input type="email" class="form-input" id="auth-email" placeholder="Enter your email" required>
                     <div class="form-error" id="emailError"></div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Password</label>
+                    <label class="form-label" for="authPassword" id="passwordLabel">Sign Up Password</label>
                     <input type="password" class="form-input" id="authPassword" placeholder="Create a password" required>
                     <div class="form-error" id="passwordError"></div>
                 </div>
                 <div class="form-group" id="confirmPasswordGroup">
-                    <label class="form-label">Confirm Password</label>
+                    <label class="form-label" for="authConfirmPassword" id="confirmPasswordLabel">Sign Up Confirm Password</label>
                     <input type="password" class="form-input" id="authConfirmPassword" placeholder="Confirm password" required>
                     <div class="form-error" id="confirmError"></div>
                 </div>
@@ -772,9 +776,15 @@
     <div class="app-container hidden" id="appContainer">
         <!-- LEFT SIDEBAR -->
         <div class="sidebar">
+            <div class="sidebar-brand">
+                <img class="brand-logo brand-logo-sidebar" src="logo.png" alt="BlockTalk">
+            </div>
             <div class="user-profile-panel">
                 <div class="user-info">
-                    <div class="user-label" id="userLabel">As: user1</div>
+                    <div class="user-identity">
+                        <div class="my-pfp" id="my-pfp" aria-label="Profile picture">--</div>
+                        <div class="user-label" id="userLabel">As: user1</div>
+                    </div>
                     <button class="logout-button" id="logoutBtn">Logout</button>
                 </div>
                 <div class="user-status">Connected to BlockTalk</div>
@@ -786,7 +796,7 @@
             </div>
 
             <!-- FRIENDS PANEL -->
-            <div class="friends-panel active" id="friendsPanel">
+            <div class="friends-panel" id="friendsPanel">
                 <div class="friends-header">
                     <div class="friends-section-title">Add Friends</div>
                     <div class="add-friend-container">
@@ -794,13 +804,16 @@
                         <button class="add-friend-button" id="addFriendBtn">Send</button>
                     </div>
                 </div>
-                <div class="friends-list" id="friendsList">
+                <div class="requests-list" id="requests-list">
+                    <!-- Friend requests dynamically inserted here -->
+                </div>
+                <div class="friends-list" id="friends-list">
                     <!-- Friends dynamically inserted here -->
                 </div>
             </div>
 
             <!-- DIRECT MESSAGES PANEL -->
-            <div class="dm-panel" id="dmPanel">
+            <div class="dm-panel active" id="dmPanel">
                 <div class="dm-header">
                     <div class="friends-section-title">Direct Messages</div>
                 </div>
@@ -808,10 +821,14 @@
                     <!-- DMs dynamically inserted here -->
                 </div>
             </div>
+
+            <div class="sidebar-footer">
+                <button type="button" class="settings-button" id="settings-button">⚙️ Settings</button>
+            </div>
         </div>
 
         <!-- MAIN CHAT AREA -->
-        <div class="main-chat">
+        <div class="main-chat" id="mainChatContainer">
             <!-- CHAT HEADER -->
             <div class="chat-header" id="chatHeaderContainer">
                 <div>
@@ -819,9 +836,46 @@
                     <div class="chat-subtitle" id="chatSubtitle">Choose a friend to message</div>
                 </div>
                 <div class="chat-header-right">
+                    <button type="button" class="call-button" id="callButton" disabled>Start Call</button>
                     <span id="onlineStatus"></span>
                 </div>
             </div>
+
+            <section class="voice-channel-panel hidden" id="active-call-panel" aria-live="polite" aria-label="Voice channel">
+                <div class="voice-channel-heading">
+                    <span class="voice-live-indicator" id="call-live-indicator"></span>
+                    <div>
+                        <h2 class="voice-channel-title" id="callRoomTitle">Voice channel</h2>
+                        <p class="voice-channel-status" id="callStatus">Waiting for connection</p>
+                    </div>
+                </div>
+                <div class="voice-participants">
+                    <div class="voice-participant">
+                        <div class="voice-avatar-bubble" id="local-call-pfp" aria-label="Your profile picture">
+                            <span id="local-call-initials">--</span>
+                        </div>
+                        <span class="voice-participant-name" id="local-call-name">You</span>
+                    </div>
+                    <span class="voice-connection-mark" aria-hidden="true">···</span>
+                    <div class="voice-participant">
+                        <div class="voice-avatar-bubble" id="remote-call-pfp" aria-label="Recipient profile picture">
+                            <span id="remote-call-initials">--</span>
+                        </div>
+                        <span class="voice-participant-name" id="remote-call-name">Recipient</span>
+                    </div>
+                </div>
+                <video class="screen-share-preview hidden" id="screen-share-preview" autoplay muted playsinline></video>
+                <video class="screen-share-preview hidden" id="remote-screen-preview" autoplay playsinline></video>
+                <audio id="remote-call-audio" autoplay></audio>
+                <div class="voice-controls">
+                    <button type="button" class="voice-control-button" id="call-mute-button" aria-pressed="false">Mute</button>
+                    <button type="button" class="voice-control-button" id="call-camera-button" aria-pressed="false">Camera</button>
+                    <button type="button" class="voice-control-button" id="call-share-button">Share Screen</button>
+                    <button type="button" class="voice-end-button" id="endCallButton" aria-label="End or disconnect call" title="End call">×</button>
+                </div>
+            </section>
+
+            <div class="incoming-call-list" id="incoming-call-list" aria-live="polite"></div>
 
             <!-- MESSAGE LOG -->
             <div class="message-log" id="messageLog">
@@ -840,6 +894,28 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <p class="call-alert" id="callAlert" role="alert" aria-live="assertive"></p>
+
+    <div class="settings-modal hidden" id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <section class="settings-panel">
+            <p class="settings-kicker">BLOCKTALK / CONFIGURATION</p>
+            <h2 class="settings-title" id="settings-title">Account Settings</h2>
+            <label class="settings-label" for="settings-pfp-url">Profile Picture URL</label>
+            <input class="settings-input" id="settings-pfp-url" type="url" placeholder="https://example.com/avatar.png" autocomplete="url">
+            <label class="settings-label" for="settings-theme">Interface Theme</label>
+            <select class="settings-input" id="settings-theme">
+                <option value="terminal">Terminal Black</option>
+                <option value="cyberpunk">Cyberpunk Grey</option>
+                <option value="light">Classic Light</option>
+            </select>
+            <p class="settings-status" id="settings-status" role="status" aria-live="polite"></p>
+            <div class="settings-actions">
+                <button type="button" class="settings-close-button" id="settings-close">Close</button>
+                <button type="button" class="settings-save-button" id="settings-save">Save Changes</button>
+            </div>
+        </section>
     </div>
 
     <script>
@@ -861,6 +937,7 @@
                     incoming: [],
                     outgoing: []
                 },
+                blockedUsers: [],
                 onlineUsers: new Set(),
                 typingUsers: {}
             },
@@ -891,7 +968,7 @@
                 handleSubmit: function(e) {
                     e.preventDefault();
                     const username = document.getElementById('authUsername').value.trim();
-                    const email = document.getElementById('authEmail').value.trim();
+                    const email = document.getElementById('auth-email').value.trim();
                     const password = document.getElementById('authPassword').value;
                     const confirmPassword = document.getElementById('authConfirmPassword').value;
 
@@ -924,6 +1001,7 @@
                     // Response: { success: boolean, token: string, user: { id, username, email } }
                     
                     // For now, simulate with localStorage
+                    let authenticatedEmail = email;
                     if (this.isSignUpMode) {
                         // Check if user already exists
                         const existingUsers = JSON.parse(localStorage.getItem('blocktalk_users') || '{}');
@@ -931,6 +1009,20 @@
                             this.showError('usernameError', 'Username already taken');
                             return;
                         }
+
+                        const database = BlockTalk.readDatabase();
+                        const emailKey = email.toLowerCase();
+                        const emailInProfiles = Object.entries(database.profiles).some(([profileUsername, profile]) =>
+                            profileUsername !== username && profile.email && profile.email.toLowerCase() === emailKey
+                        );
+                        const emailInAccounts = Object.entries(existingUsers).some(([profileUsername, account]) =>
+                            profileUsername !== username && account.email && account.email.toLowerCase() === emailKey
+                        );
+                        if (emailInProfiles || emailInAccounts) {
+                            alert('⚠️ This email key is already linked to an active user ID.');
+                            return;
+                        }
+
                         existingUsers[username] = { email, password, createdAt: Date.now() };
                         localStorage.setItem('blocktalk_users', JSON.stringify(existingUsers));
                     } else {
@@ -940,11 +1032,14 @@
                             this.showError('passwordError', 'Invalid credentials');
                             return;
                         }
+                        authenticatedEmail = existingUsers[username].email || email;
                     }
 
                     // Authentication successful
                     BlockTalk.state.isAuthenticated = true;
-                    BlockTalk.state.currentUser = { username, email };
+                    BlockTalk.state.currentUser = { username, email: authenticatedEmail };
+                    BlockTalk.loadUserData();
+                    BlockTalk.saveUserData();
                     BlockTalk.saveSession();
                     BlockTalk.showApp();
                 },
@@ -995,109 +1090,276 @@
                 }
             },
 
-            loadUserData: function() {
-                // [API CALL] Fetch user data from backend
-                // GET /api/users/:username/data
-                // Response: { friends, messages, pendingRequests, onlineUsers }
+            databaseKey: 'blocktalk_database',
 
-                // Simulate with localStorage
-                const userKey = `blocktalk_user_${this.state.currentUser.username}`;
-                const userData = JSON.parse(localStorage.getItem(userKey) || '{"friends":[],"messages":{},"pendingRequests":{"incoming":[],"outgoing":[]}}');
-                
-                this.state.friends = userData.friends || [];
-                this.state.messages = userData.messages || {};
-                this.state.pendingFriendRequests = userData.pendingRequests || { incoming: [], outgoing: [] };
-                this.state.onlineUsers = new Set(userData.onlineUsers || []);
+            readDatabase: function() {
+                let database;
+                try {
+                    database = JSON.parse(localStorage.getItem(this.databaseKey) || '{"profiles":{}}');
+                } catch (error) {
+                    console.warn('BlockTalk database could not be read; starting with an empty database.', error);
+                }
+                if (!database || !database.profiles || typeof database.profiles !== 'object') {
+                    database = { profiles: {}, calls: {} };
+                }
+                if (!database.calls || typeof database.calls !== 'object') database.calls = {};
+
+                const legacyKeys = [];
+                for (let index = 0; index < localStorage.length; index += 1) {
+                    const key = localStorage.key(index);
+                    if (key && key.startsWith('blocktalk_user_')) legacyKeys.push(key);
+                }
+                legacyKeys.forEach(key => {
+                    const username = key.slice('blocktalk_user_'.length);
+                    if (!database.profiles[username]) {
+                        try {
+                            database.profiles[username] = this.createUserProfile(
+                                JSON.parse(localStorage.getItem(key) || '{}')
+                            );
+                        } catch (error) {
+                            database.profiles[username] = this.createUserProfile();
+                        }
+                    }
+                });
+
+                if (legacyKeys.length > 0) {
+                    this.writeDatabase(database, false);
+                    legacyKeys.forEach(key => localStorage.removeItem(key));
+                    window.dispatchEvent(new CustomEvent('blocktalk:database-change'));
+                }
+                return database;
+            },
+
+            writeDatabase: function(database, notify = true) {
+                localStorage.setItem(this.databaseKey, JSON.stringify(database));
+                if (notify) window.dispatchEvent(new CustomEvent('blocktalk:database-change'));
+            },
+
+            createUserProfile: function(profile = {}) {
+                profile = profile || {};
+                const requests = profile.pendingFriendRequests || profile.pendingRequests || {};
+                return {
+                    email: typeof profile.email === 'string' ? profile.email : '',
+                    profilePictureUrl: typeof profile.profilePictureUrl === 'string' ? profile.profilePictureUrl : '',
+                    theme: ['terminal', 'cyberpunk', 'light'].includes(profile.theme) ? profile.theme : 'terminal',
+                    blockedUsers: Array.isArray(profile.blockedUsers) ? profile.blockedUsers : [],
+                    incomingCalls: Array.isArray(profile.incomingCalls) ? profile.incomingCalls : [],
+                    activeCallId: typeof profile.activeCallId === 'string' ? profile.activeCallId : null,
+                    friends: Array.isArray(profile.friends) ? profile.friends : [],
+                    messages: profile.messages && typeof profile.messages === 'object' ? profile.messages : {},
+                    pendingFriendRequests: {
+                        incoming: Array.isArray(requests.incoming) ? requests.incoming : [],
+                        outgoing: Array.isArray(requests.outgoing) ? requests.outgoing : []
+                    },
+                    onlineUsers: Array.isArray(profile.onlineUsers) ? profile.onlineUsers : []
+                };
+            },
+
+            getUserProfile: function(database, username) {
+                database.profiles[username] = this.createUserProfile(database.profiles[username]);
+                return database.profiles[username];
+            },
+
+            loadUserData: function() {
+                if (!this.state.currentUser) return;
+
+                const username = this.state.currentUser.username;
+                const database = this.readDatabase();
+                let profile = database.profiles[username];
+                if (!profile) {
+                    profile = this.createUserProfile();
+                    database.profiles[username] = profile;
+                    this.writeDatabase(database);
+                }
+
+                profile = this.createUserProfile(profile);
+                const accounts = JSON.parse(localStorage.getItem('blocktalk_users') || '{}');
+                profile.email = profile.email || accounts[username]?.email || this.state.currentUser.email || '';
+                this.state.currentUser.email = profile.email;
+                this.state.friends = profile.friends;
+                this.state.messages = profile.messages;
+                this.state.pendingFriendRequests = profile.pendingFriendRequests;
+                this.state.blockedUsers = profile.blockedUsers;
+                this.state.onlineUsers = new Set(profile.onlineUsers);
             },
 
             saveUserData: function() {
-                const userKey = `blocktalk_user_${this.state.currentUser.username}`;
-                const userData = {
-                    friends: this.state.friends,
-                    messages: this.state.messages,
-                    pendingRequests: this.state.pendingFriendRequests,
-                    onlineUsers: Array.from(this.state.onlineUsers)
-                };
-                localStorage.setItem(userKey, JSON.stringify(userData));
-                
-                // [API CALL] Save user data to backend
-                // POST /api/users/:username/data
-                // Body: userData
+                if (!this.state.currentUser) return;
+
+                const database = this.readDatabase();
+                const profile = this.getUserProfile(database, this.state.currentUser.username);
+                profile.email = this.state.currentUser.email || profile.email;
+                profile.friends = this.state.friends;
+                profile.messages = this.state.messages;
+                profile.pendingFriendRequests = this.state.pendingFriendRequests;
+                profile.onlineUsers = Array.from(this.state.onlineUsers);
+                this.writeDatabase(database);
             },
 
             // ===== SOCIAL NETWORKING MODULE =====
             friends: {
                 sendRequest: function(targetUsername) {
-                    if (!targetUsername || targetUsername === BlockTalk.state.currentUser.username) {
+                    const senderUsername = BlockTalk.state.currentUser.username;
+                    const normalizedTarget = targetUsername.trim();
+                    if (!normalizedTarget || normalizedTarget === senderUsername) {
                         alert('Invalid username');
                         return;
                     }
 
-                    // Check if already friends
-                    if (BlockTalk.state.friends.find(f => f.username === targetUsername)) {
+                    const accounts = JSON.parse(localStorage.getItem('blocktalk_users') || '{}');
+                    if (!accounts[normalizedTarget]) {
+                        alert('No account found for this username');
+                        return;
+                    }
+
+                    const database = BlockTalk.readDatabase();
+                    const sender = BlockTalk.getUserProfile(database, senderUsername);
+                    const recipient = BlockTalk.getUserProfile(database, normalizedTarget);
+                    if (sender.blockedUsers.includes(normalizedTarget) || recipient.blockedUsers.includes(senderUsername)) {
+                        alert('This user cannot be reached.');
+                        return;
+                    }
+                    if (sender.friends.some(friend => friend.username === normalizedTarget) ||
+                        recipient.friends.some(friend => friend.username === senderUsername)) {
                         alert('Already friends with this user');
                         return;
                     }
 
-                    // Check if request already sent
-                    if (BlockTalk.state.pendingFriendRequests.outgoing.includes(targetUsername)) {
+                    if (sender.pendingFriendRequests.outgoing.includes(normalizedTarget) ||
+                        recipient.pendingFriendRequests.incoming.includes(senderUsername)) {
                         alert('Friend request already sent');
                         return;
                     }
 
-                    // [API CALL] Send friend request
-                    // POST /api/friends/request
-                    // Body: { fromUser, toUser }
-                    // Response: { success: boolean }
-
-                    BlockTalk.state.pendingFriendRequests.outgoing.push(targetUsername);
-                    BlockTalk.saveUserData();
+                    sender.pendingFriendRequests.outgoing.push(normalizedTarget);
+                    recipient.pendingFriendRequests.incoming.push(senderUsername);
+                    BlockTalk.writeDatabase(database);
+                    BlockTalk.loadUserData();
                     BlockTalk.renderFriendsList();
+                    BlockTalk.renderDMList();
                     document.getElementById('addFriendInput').value = '';
                 },
 
                 acceptRequest: function(fromUsername) {
-                    // [API CALL] Accept friend request
-                    // POST /api/friends/accept
-                    // Body: { fromUser, toUser }
+                    const username = BlockTalk.state.currentUser.username;
+                    const database = BlockTalk.readDatabase();
+                    const recipient = BlockTalk.getUserProfile(database, username);
+                    const requester = BlockTalk.getUserProfile(database, fromUsername);
+                    if (!recipient.pendingFriendRequests.incoming.includes(fromUsername) ||
+                        recipient.blockedUsers.includes(fromUsername) || requester.blockedUsers.includes(username)) return;
 
-                    const index = BlockTalk.state.pendingFriendRequests.incoming.indexOf(fromUsername);
-                    if (index > -1) {
-                        BlockTalk.state.pendingFriendRequests.incoming.splice(index, 1);
-                        BlockTalk.state.friends.push({
-                            username: fromUsername,
-                            status: 'online',
-                            addedAt: Date.now()
-                        });
-                        BlockTalk.saveUserData();
-                        BlockTalk.renderFriendsList();
+                    recipient.pendingFriendRequests.incoming = recipient.pendingFriendRequests.incoming
+                        .filter(requesterName => requesterName !== fromUsername);
+                    requester.pendingFriendRequests.outgoing = requester.pendingFriendRequests.outgoing
+                        .filter(recipientName => recipientName !== username);
+
+                    if (!recipient.friends.some(friend => friend.username === fromUsername)) {
+                        recipient.friends.push({ username: fromUsername, status: 'online', addedAt: Date.now() });
                     }
+                    if (!requester.friends.some(friend => friend.username === username)) {
+                        requester.friends.push({ username, status: 'online', addedAt: Date.now() });
+                    }
+
+                    BlockTalk.writeDatabase(database);
+                    BlockTalk.loadUserData();
+                    BlockTalk.renderFriendsList();
+                    BlockTalk.renderDMList();
+                    BlockTalk.selectConversation(fromUsername);
                 },
 
                 declineRequest: function(fromUsername) {
-                    // [API CALL] Decline friend request
-                    // POST /api/friends/decline
-                    // Body: { fromUser, toUser }
-
-                    const index = BlockTalk.state.pendingFriendRequests.incoming.indexOf(fromUsername);
-                    if (index > -1) {
-                        BlockTalk.state.pendingFriendRequests.incoming.splice(index, 1);
-                        BlockTalk.saveUserData();
-                        BlockTalk.renderFriendsList();
-                    }
+                    const username = BlockTalk.state.currentUser.username;
+                    const database = BlockTalk.readDatabase();
+                    const recipient = BlockTalk.getUserProfile(database, username);
+                    const requester = BlockTalk.getUserProfile(database, fromUsername);
+                    recipient.pendingFriendRequests.incoming = recipient.pendingFriendRequests.incoming
+                        .filter(requesterName => requesterName !== fromUsername);
+                    requester.pendingFriendRequests.outgoing = requester.pendingFriendRequests.outgoing
+                        .filter(recipientName => recipientName !== username);
+                    BlockTalk.writeDatabase(database);
+                    BlockTalk.loadUserData();
+                    BlockTalk.renderFriendsList();
                 },
 
-                removeFriend: function(friendUsername) {
-                    // [API CALL] Remove friend
-                    // POST /api/friends/remove
-                    // Body: { currentUser, targetUser }
+                cancelFriendRequest: function(targetUsername) {
+                    const username = BlockTalk.state.currentUser.username;
+                    const database = BlockTalk.readDatabase();
+                    const sender = BlockTalk.getUserProfile(database, username);
+                    const recipient = BlockTalk.getUserProfile(database, targetUsername);
+                    sender.pendingFriendRequests.outgoing = sender.pendingFriendRequests.outgoing
+                        .filter(recipientName => recipientName !== targetUsername);
+                    recipient.pendingFriendRequests.incoming = recipient.pendingFriendRequests.incoming
+                        .filter(requesterName => requesterName !== username);
+                    BlockTalk.writeDatabase(database);
+                    BlockTalk.loadUserData();
+                    BlockTalk.renderFriendsList();
+                },
 
-                    BlockTalk.state.friends = BlockTalk.state.friends.filter(f => f.username !== friendUsername);
+                cancelRequest: function(targetUsername) {
+                    this.cancelFriendRequest(targetUsername);
+                },
+
+                unfriendUser: function(friendUsername) {
+                    const username = BlockTalk.state.currentUser.username;
+                    const database = BlockTalk.readDatabase();
+                    const user = BlockTalk.getUserProfile(database, username);
+                    const friend = BlockTalk.getUserProfile(database, friendUsername);
+                    user.friends = user.friends.filter(item => item.username !== friendUsername);
+                    friend.friends = friend.friends.filter(item => item.username !== username);
+                    user.pendingFriendRequests.outgoing = user.pendingFriendRequests.outgoing
+                        .filter(target => target !== friendUsername);
+                    friend.pendingFriendRequests.incoming = friend.pendingFriendRequests.incoming
+                        .filter(target => target !== username);
                     if (BlockTalk.state.currentConversation === friendUsername) {
                         BlockTalk.state.currentConversation = null;
                     }
-                    BlockTalk.saveUserData();
+                    BlockTalk.writeDatabase(database);
+                    BlockTalk.loadUserData();
                     BlockTalk.renderFriendsList();
+                    BlockTalk.renderDMList();
+                    BlockTalk.renderChatArea();
+                },
+
+                removeFriend: function(friendUsername) {
+                    this.unfriendUser(friendUsername);
+                },
+
+                blockUser: function(targetUsername) {
+                    const username = BlockTalk.state.currentUser.username;
+                    const database = BlockTalk.readDatabase();
+                    const user = BlockTalk.getUserProfile(database, username);
+                    const target = BlockTalk.getUserProfile(database, targetUsername);
+                    if (!user.blockedUsers.includes(targetUsername)) user.blockedUsers.push(targetUsername);
+                    user.friends = user.friends.filter(friend => friend.username !== targetUsername);
+                    target.friends = target.friends.filter(friend => friend.username !== username);
+                    user.pendingFriendRequests.incoming = user.pendingFriendRequests.incoming
+                        .filter(requester => requester !== targetUsername);
+                    user.pendingFriendRequests.outgoing = user.pendingFriendRequests.outgoing
+                        .filter(recipient => recipient !== targetUsername);
+                    target.pendingFriendRequests.incoming = target.pendingFriendRequests.incoming
+                        .filter(requester => requester !== username);
+                    target.pendingFriendRequests.outgoing = target.pendingFriendRequests.outgoing
+                        .filter(recipient => recipient !== username);
+
+                    Object.entries(database.calls).forEach(([callId, call]) => {
+                        if (call && [call.caller, call.recipient].includes(username) &&
+                            [call.caller, call.recipient].includes(targetUsername)) {
+                            call.status = 'ended';
+                            call.endedAt = Date.now();
+                            user.incomingCalls = user.incomingCalls.filter(id => id !== callId);
+                            target.incomingCalls = target.incomingCalls.filter(id => id !== callId);
+                            if (user.activeCallId === callId) user.activeCallId = null;
+                            if (target.activeCallId === callId) target.activeCallId = null;
+                        }
+                    });
+
+                    if (BlockTalk.state.currentConversation === targetUsername) {
+                        BlockTalk.state.currentConversation = null;
+                    }
+                    BlockTalk.writeDatabase(database);
+                    BlockTalk.loadUserData();
+                    BlockTalk.renderFriendsList();
+                    BlockTalk.renderDMList();
                     BlockTalk.renderChatArea();
                 }
             },
@@ -1109,26 +1371,31 @@
                         return;
                     }
 
+                    const senderUsername = BlockTalk.state.currentUser.username;
+                    const recipientUsername = BlockTalk.state.currentConversation;
+                    const database = BlockTalk.readDatabase();
+                    const sender = BlockTalk.getUserProfile(database, senderUsername);
+                    const recipient = BlockTalk.getUserProfile(database, recipientUsername);
+                    if (!sender.friends.some(friend => friend.username === recipientUsername) ||
+                        sender.blockedUsers.includes(recipientUsername) ||
+                        recipient.blockedUsers.includes(senderUsername)) return;
+
                     const message = {
                         id: Date.now().toString(),
-                        sender: BlockTalk.state.currentUser.username,
+                        sender: senderUsername,
                         content: content.trim(),
                         timestamp: Date.now(),
                         status: 'sent' // 'sent', 'delivered', 'read'
                     };
 
-                    // [API CALL] Send message
-                    // POST /api/messages/send
-                    // Body: { from, to, content, timestamp }
-                    // Response: { success: boolean, messageId: string }
-
-                    if (!BlockTalk.state.messages[BlockTalk.state.currentConversation]) {
-                        BlockTalk.state.messages[BlockTalk.state.currentConversation] = [];
-                    }
-
-                    BlockTalk.state.messages[BlockTalk.state.currentConversation].push(message);
-                    BlockTalk.saveUserData();
+                    sender.messages[recipientUsername] = sender.messages[recipientUsername] || [];
+                    recipient.messages[senderUsername] = recipient.messages[senderUsername] || [];
+                    sender.messages[recipientUsername].push(message);
+                    recipient.messages[senderUsername].push(message);
+                    BlockTalk.writeDatabase(database);
+                    BlockTalk.loadUserData();
                     BlockTalk.renderMessages();
+                    BlockTalk.renderDMList();
                     document.getElementById('messageInput').value = '';
                     BlockTalk.clearTypingIndicator();
                 },
@@ -1138,27 +1405,33 @@
                     // POST /api/messages/mark-read
                     // Body: { from, to, messageIds }
 
-                    if (BlockTalk.state.messages[friendUsername]) {
-                        BlockTalk.state.messages[friendUsername].forEach(msg => {
-                            if (msg.sender === friendUsername && msg.status !== 'read') {
-                                msg.status = 'read';
-                            }
-                        });
-                        BlockTalk.saveUserData();
-                    }
+                    const username = BlockTalk.state.currentUser.username;
+                    const database = BlockTalk.readDatabase();
+                    const reader = BlockTalk.getUserProfile(database, username);
+                    const sender = BlockTalk.getUserProfile(database, friendUsername);
+                    const readIds = new Set((reader.messages[friendUsername] || [])
+                        .filter(message => message.sender === friendUsername)
+                        .map(message => message.id));
+
+                    (reader.messages[friendUsername] || []).forEach(message => {
+                        if (readIds.has(message.id)) message.status = 'read';
+                    });
+                    (sender.messages[username] || []).forEach(message => {
+                        if (readIds.has(message.id)) message.status = 'read';
+                    });
+
+                    BlockTalk.writeDatabase(database);
+                    BlockTalk.loadUserData();
+                    BlockTalk.renderMessages();
+                    BlockTalk.renderDMList();
                 },
 
                 handleTyping: function() {
-                    if (!BlockTalk.state.currentConversation) return;
-
                     // [API CALL] Broadcast typing indicator
                     // POST /api/typing/start
-                    // Body: { from, to }
-
                     // Debounced typing indicator (simplified)
                     clearTimeout(BlockTalk.typingTimeout);
                     BlockTalk.typingTimeout = setTimeout(() => {
-                        // [API CALL] Clear typing indicator
                         // POST /api/typing/stop
                     }, 3000);
                 }
@@ -1166,11 +1439,8 @@
 
             // ===== UI RENDERING MODULE =====
             renderUI: function() {
-                if (this.state.isAuthenticated) {
-                    this.showApp();
-                } else {
-                    this.showAuth();
-                }
+                if (this.state.isAuthenticated) this.showApp();
+                else this.showAuth();
             },
 
             showAuth: function() {
@@ -1184,121 +1454,161 @@
                 document.getElementById('userLabel').textContent = `As: ${this.state.currentUser.username}`;
                 this.renderFriendsList();
                 this.renderDMList();
+                this.renderChatArea();
             },
 
             renderFriendsList: function() {
-                const friendsList = document.getElementById('friendsList');
+                const requestsList = document.getElementById('requests-list');
+                const friendsList = document.getElementById('friends-list');
+                requestsList.innerHTML = '';
                 friendsList.innerHTML = '';
 
-                // Render pending incoming requests
-                if (this.state.pendingFriendRequests.incoming.length > 0) {
-                    const incomingSection = document.createElement('div');
-                    incomingSection.innerHTML = '<div class="friends-section-title" style="padding: 12px 8px 8px; margin-top: 12px;">Pending Requests</div>';
-                    friendsList.appendChild(incomingSection);
+                const username = this.state.currentUser.username;
+                const database = this.readDatabase();
+                const profile = this.getUserProfile(database, username);
+                const isBlocked = target => profile.blockedUsers.includes(target) ||
+                    this.getUserProfile(database, target).blockedUsers.includes(username);
+                const appendHeading = (container, title) => {
+                    const heading = document.createElement('div');
+                    heading.className = 'friends-section-title';
+                    heading.textContent = title;
+                    container.appendChild(heading);
+                };
+                const makeButton = (label, action, target, style) => {
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.className = `friend-action-btn ${style}`;
+                    button.dataset[action] = target;
+                    button.textContent = label;
+                    return button;
+                };
+                const makeRow = (container, label, buttons) => {
+                    const row = document.createElement('div');
+                    row.className = 'friend-item';
+                    const name = document.createElement('span');
+                    name.textContent = label;
+                    row.appendChild(name);
+                    const actions = document.createElement('div');
+                    actions.className = 'friend-actions';
+                    buttons.forEach(button => actions.appendChild(button));
+                    row.appendChild(actions);
+                    container.appendChild(row);
+                };
 
-                    this.state.pendingFriendRequests.incoming.forEach(username => {
-                        const item = document.createElement('div');
-                        item.className = 'friend-item';
-                        item.innerHTML = `
-                            <span>${username}</span>
-                            <div class="friend-actions">
-                                <button class="friend-action-btn friend-accept-btn" data-accept="${username}">✓</button>
-                                <button class="friend-action-btn friend-decline-btn" data-decline="${username}">✕</button>
-                            </div>
-                        `;
-                        friendsList.appendChild(item);
-                    });
+                const incoming = this.state.pendingFriendRequests.incoming.filter(name => !isBlocked(name));
+                const outgoing = this.state.pendingFriendRequests.outgoing.filter(name => !isBlocked(name));
+                const visibleFriends = this.state.friends.filter(friend => !isBlocked(friend.username));
+
+                if (incoming.length) {
+                    appendHeading(requestsList, 'Incoming Requests');
+                    incoming.forEach(name => makeRow(requestsList, name, [
+                        makeButton('Accept', 'accept', name, 'friend-accept-btn'),
+                        makeButton('Decline', 'decline', name, 'friend-decline-btn')
+                    ]));
+                }
+                if (outgoing.length) {
+                    appendHeading(requestsList, 'Sent Requests');
+                    outgoing.forEach(name => makeRow(requestsList, name, [
+                        makeButton('Cancel', 'cancel', name, 'friend-cancel-btn')
+                    ]));
+                }
+                if (!incoming.length && !outgoing.length) {
+                    const empty = document.createElement('div');
+                    empty.className = 'empty-list-note';
+                    empty.textContent = 'No pending requests';
+                    requestsList.appendChild(empty);
                 }
 
-                // Render pending outgoing requests
-                if (this.state.pendingFriendRequests.outgoing.length > 0) {
-                    const outgoingSection = document.createElement('div');
-                    outgoingSection.innerHTML = '<div class="friends-section-title" style="padding: 12px 8px 8px; margin-top: 12px;">Sent Requests</div>';
-                    friendsList.appendChild(outgoingSection);
-
-                    this.state.pendingFriendRequests.outgoing.forEach(username => {
-                        const item = document.createElement('div');
-                        item.className = 'friend-item';
-                        item.innerHTML = `
-                            <span>${username}</span>
-                            <span class="friend-actions" style="color: #72767d; font-size: 11px;">Pending...</span>
-                        `;
-                        friendsList.appendChild(item);
+                if (visibleFriends.length) {
+                    appendHeading(friendsList, 'Friends');
+                    visibleFriends.forEach(friend => {
+                        const status = this.state.onlineUsers.has(friend.username) ? 'ONLINE  ' : 'OFFLINE  ';
+                        makeRow(friendsList, status + friend.username, [
+                            makeButton('Unfriend', 'remove', friend.username, 'friend-remove-btn'),
+                            makeButton('Block', 'block', friend.username, 'friend-block-btn')
+                        ]);
                     });
+                } else {
+                    const empty = document.createElement('div');
+                    empty.className = 'empty-list-note';
+                    empty.textContent = 'No friends yet';
+                    friendsList.appendChild(empty);
                 }
 
-                // Render accepted friends
-                if (this.state.friends.length > 0) {
-                    const friendsSection = document.createElement('div');
-                    friendsSection.innerHTML = '<div class="friends-section-title" style="padding: 12px 8px 8px; margin-top: 12px;">Friends</div>';
-                    friendsList.appendChild(friendsSection);
-
-                    this.state.friends.forEach(friend => {
-                        const item = document.createElement('div');
-                        item.className = 'friend-item';
-                        const onlineStatus = this.state.onlineUsers.has(friend.username) ? '🟢' : '⚫';
-                        item.innerHTML = `
-                            <span>${onlineStatus} ${friend.username}</span>
-                            <button class="friend-action-btn friend-remove-btn" data-remove="${friend.username}">Remove</button>
-                        `;
-                        friendsList.appendChild(item);
-                    });
-                }
-
-                // Add event listeners for friend actions
-                friendsList.querySelectorAll('[data-accept]').forEach(btn => {
-                    btn.addEventListener('click', () => this.friends.acceptRequest(btn.dataset.accept));
+                requestsList.querySelectorAll('[data-accept]').forEach(button => {
+                    button.addEventListener('click', () => this.friends.acceptRequest(button.dataset.accept));
                 });
-
-                friendsList.querySelectorAll('[data-decline]').forEach(btn => {
-                    btn.addEventListener('click', () => this.friends.declineRequest(btn.dataset.decline));
+                requestsList.querySelectorAll('[data-decline]').forEach(button => {
+                    button.addEventListener('click', () => this.friends.declineRequest(button.dataset.decline));
                 });
-
-                friendsList.querySelectorAll('[data-remove]').forEach(btn => {
-                    btn.addEventListener('click', () => this.friends.removeFriend(btn.dataset.remove));
+                requestsList.querySelectorAll('[data-cancel]').forEach(button => {
+                    button.addEventListener('click', () => this.friends.cancelRequest(button.dataset.cancel));
+                });
+                friendsList.querySelectorAll('[data-remove]').forEach(button => {
+                    button.addEventListener('click', () => this.friends.unfriendUser(button.dataset.remove));
+                });
+                friendsList.querySelectorAll('[data-block]').forEach(button => {
+                    button.addEventListener('click', () => this.friends.blockUser(button.dataset.block));
                 });
             },
 
             renderDMList: function() {
                 const dmList = document.getElementById('dmList');
                 dmList.innerHTML = '';
+                const username = this.state.currentUser.username;
+                const database = this.readDatabase();
+                const profile = this.getUserProfile(database, username);
+                const visibleFriends = this.state.friends.filter(friend =>
+                    !profile.blockedUsers.includes(friend.username) &&
+                    !this.getUserProfile(database, friend.username).blockedUsers.includes(username)
+                );
 
-                if (this.state.friends.length === 0) {
+                if (!visibleFriends.length) {
                     dmList.innerHTML = '<div class="empty-state">No friends yet. Add friends to start messaging!</div>';
                     return;
                 }
 
-                this.state.friends.forEach(friend => {
+                visibleFriends.forEach(friend => {
                     const item = document.createElement('div');
                     item.className = 'dm-item';
-                    if (this.state.currentConversation === friend.username) {
-                        item.classList.add('active');
-                    }
-
+                    if (this.state.currentConversation === friend.username) item.classList.add('active');
                     const messages = this.state.messages[friend.username] || [];
-                    const unreadCount = messages.filter(m => m.sender === friend.username && m.status !== 'read').length;
+                    const unreadCount = messages.filter(message => message.sender === friend.username && message.status !== 'read').length;
                     const lastMessage = messages[messages.length - 1];
-                    const preview = lastMessage ? lastMessage.content.substring(0, 30) + (lastMessage.content.length > 30 ? '...' : '') : 'No messages yet';
-
-                    const onlineStatus = this.state.onlineUsers.has(friend.username) ? '🟢' : '⚫';
-
-                    item.innerHTML = `
-                        <div class="dm-item-info">
-                            <div class="dm-item-name">${onlineStatus} ${friend.username}</div>
-                            <div class="dm-item-preview">${preview}</div>
-                        </div>
-                        ${unreadCount > 0 ? `<div class="dm-unread-badge">${unreadCount}</div>` : ''}
-                    `;
-
-                    item.addEventListener('click', () => {
-                        this.selectConversation(friend.username);
-                    });
-
+                    const preview = lastMessage
+                        ? lastMessage.content.substring(0, 30) + (lastMessage.content.length > 30 ? '...' : '')
+                        : 'No messages yet';
+                    const info = document.createElement('div');
+                    info.className = 'dm-item-info';
+                    const name = document.createElement('div');
+                    name.className = 'dm-item-name';
+                    name.textContent = `${this.state.onlineUsers.has(friend.username) ? 'ONLINE' : 'OFFLINE'}  ${friend.username}`;
+                    const messagePreview = document.createElement('div');
+                    messagePreview.className = 'dm-item-preview';
+                    messagePreview.textContent = preview;
+                    info.append(name, messagePreview);
+                    item.appendChild(info);
+                    if (unreadCount) {
+                        const badge = document.createElement('div');
+                        badge.className = 'dm-unread-badge';
+                        badge.textContent = String(unreadCount);
+                        item.appendChild(badge);
+                    }
+                    item.addEventListener('click', () => this.selectConversation(friend.username));
                     dmList.appendChild(item);
                 });
             },
 
             selectConversation: function(friendUsername) {
+                const username = this.state.currentUser.username;
+                const database = this.readDatabase();
+                if (!this.state.friends.some(friend => friend.username === friendUsername) ||
+                    this.getUserProfile(database, username).blockedUsers.includes(friendUsername) ||
+                    this.getUserProfile(database, friendUsername).blockedUsers.includes(username)) {
+                    this.state.currentConversation = null;
+                    this.renderChatArea();
+                    return;
+                }
                 this.state.currentConversation = friendUsername;
                 this.renderDMList();
                 this.renderChatArea();
@@ -1311,6 +1621,17 @@
                 const chatSubtitle = document.getElementById('chatSubtitle');
                 const onlineStatus = document.getElementById('onlineStatus');
                 const messageInput = document.getElementById('messageInput');
+
+                if (this.state.currentConversation) {
+                    const database = this.readDatabase();
+                    const username = this.state.currentUser.username;
+                    const peer = this.state.currentConversation;
+                    if (!this.state.friends.some(friend => friend.username === peer) ||
+                        this.getUserProfile(database, username).blockedUsers.includes(peer) ||
+                        this.getUserProfile(database, peer).blockedUsers.includes(username)) {
+                        this.state.currentConversation = null;
+                    }
+                }
 
                 if (!this.state.currentConversation) {
                     messageLog.innerHTML = `
@@ -1428,6 +1749,7 @@
                     friends: [],
                     messages: {},
                     pendingFriendRequests: { incoming: [], outgoing: [] },
+                    blockedUsers: [],
                     onlineUsers: new Set(),
                     typingUsers: {}
                 };
@@ -1437,11 +1759,12 @@
             }
         };
 
+        window.BlockTalk = BlockTalk;
+
         // ===== EVENT LISTENER SETUP =====
         BlockTalk.setupEventListeners = function() {
             // Auth events
             document.getElementById('authForm').addEventListener('submit', (e) => this.auth.handleSubmit(e));
-            document.getElementById('authToggleBtn').addEventListener('click', () => this.auth.toggleMode());
 
             // App events
             document.getElementById('logoutBtn').addEventListener('click', () => this.logout());
@@ -1535,38 +1858,9 @@
                 }
             }, 5000);
 
-            // Simulate receiving messages (would come from WebSocket)
-            setInterval(() => {
-                if (BlockTalk.state.isAuthenticated && BlockTalk.state.currentConversation && Math.random() > 0.9) {
-                    const randomMessages = [
-                        'Hey, how are you?',
-                        'That sounds great!',
-                        'Let me know when you are free',
-                        'Looking forward to it',
-                        'Thanks for the update',
-                        'Sounds like a plan'
-                    ];
-                    const msg = {
-                        id: Date.now().toString(),
-                        sender: BlockTalk.state.currentConversation,
-                        content: randomMessages[Math.floor(Math.random() * randomMessages.length)],
-                        timestamp: Date.now(),
-                        status: 'delivered'
-                    };
-                    if (!BlockTalk.state.messages[BlockTalk.state.currentConversation]) {
-                        BlockTalk.state.messages[BlockTalk.state.currentConversation] = [];
-                    }
-                    BlockTalk.state.messages[BlockTalk.state.currentConversation].push(msg);
-                    BlockTalk.renderMessages();
-                    BlockTalk.renderDMList();
-                    // Mark as read after short delay
-                    setTimeout(() => {
-                        msg.status = 'read';
-                        BlockTalk.renderMessages();
-                    }, 1000);
-                }
-            }, 6000);
         });
     </script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js" defer></script>
 </body>
 </html>
