@@ -5,24 +5,50 @@ The MIT License for this project is in [LICENSE](./LICENSE).
 BlockTalk is a static browser chat app. Gun SEA handles account registration
 and sign-in; account profiles, friend requests, presence, encrypted direct
 messages, invite-code group servers, and encrypted WebRTC call signaling
-synchronize through a public GunDB relay. The browser app uses no Node.js API
-or Socket.IO server, so no application server process is required.
+synchronize through a public GunDB relay. Chat uses static browser files; email
+recovery additionally uses Netlify Functions, Netlify Blobs, and Bird.
 
 ## Run locally or deploy
 
 Serve the repository root as static files, for example with
-`python -m http.server 8000`, then open `http://localhost:8000`. Netlify can
-publish the repository root directly. Installable PWA features and microphone
-access require HTTPS in production (localhost is allowed for local development).
+`python -m http.server 8000`, then open `http://localhost:8000`. Netlify deploys
+the static app and email-recovery functions from this repository. Installable
+PWA features and microphone access require HTTPS in production (localhost is
+allowed for local development).
 The current official deployment is `https://webblocktalk.netlify.app/`.
 
 Gun identities are separate from the former Node-server accounts. Existing
-server accounts are not migrated; users must create a new Gun account. While
-signed in, users can change their password from Settings by entering the
-current password and confirming a new one. There is no email-based recovery;
-lost passwords cannot be recovered, so users must keep them safe. Accounts are
-associated with the configured relay's Gun alias directory; changing or losing
-access to that relay can affect account discovery and availability.
+server accounts are not migrated; users must create a new Gun account. New
+accounts verify a recovery email during sign-up. Older Gun accounts that were
+not enrolled with email recovery cannot be recovered by email. While signed in,
+users can also change their password from Settings by entering the current
+password and confirming a new one. Accounts are associated with the configured
+relay's Gun alias directory; changing or losing access to that relay can affect
+account discovery and availability.
+
+### Email recovery service
+
+Email recovery uses Netlify Functions, Netlify Blobs, and Bird. Before
+enabling it on a site, configure these Netlify environment variables:
+
+- `BIRD_API_KEY`: a Bird API key. Keys beginning with `bk_us1_` use the US
+  API region; keys beginning with `bk_eu1_` use the EU region. Keep it private.
+- `RECOVERY_FROM_EMAIL`: a sender address on a sending domain verified in Bird.
+- `RECOVERY_ENCRYPTION_KEY`: output from `openssl rand -base64 32`; keep it
+  private and back it up securely. Losing or rotating this key makes enrolled
+  recovery records unreadable.
+
+For production recovery emails, verify your own sending domain in Bird and use
+an address on that domain. Bird's shared `onboarding@messagebird.dev` sender is
+for initial testing and has recipient restrictions.
+
+The recovery service stores each enrolled Gun key pair encrypted in Netlify
+Blobs. The encryption key grants the service the ability to recover accounts,
+so protect it like a credential. Access to a registered recovery email can
+reset that account's password. Email addresses and recovery keys are not public
+Gun profile fields. Existing accounts must still be signed in to enroll an
+email; no recovery email can be attached to an account whose credentials are
+already lost.
 
 ## Install and offline behavior
 
@@ -84,14 +110,15 @@ shown on their profile alongside their badges.
 
 Profiles show an Early OG badge when the account was newly registered before
 January 1, 2027, and the BlockTalk Owner badge for the exact
-`ItsTerminal4404` account. In addition, the owner can award 30 collectible
+`ItsTerminal4404_` account. In addition, the owner can award 30 collectible
 badges and 26 chat titles from a profile's owner tools, as well as special
 badges such as Beta Tester for people who help test the app. These awards are
-issued only by `ItsTerminal4404`; collectible badges and titles are not
+issued only by `ItsTerminal4404_`; collectible badges and titles are not
 automatically unlocked by activity or gameplay. A user's most recently
 awarded title appears beside their name in DM and server text messages and on
-their profile. Owner awards are signed and verified against the owner's Gun
-account key. Profiles, badges, and titles are public Gun data. Accounts
+their profile. `ItsTerminal4404` is no longer the owner account. Owner awards
+are signed and verified against the owner's Gun account key. Profiles, badges,
+and titles are public Gun data. Accounts
 created before account creation timestamps were added may not have a
 verifiable join date and will not automatically receive the Early OG badge.
 The date is a public profile value, so the Early OG badge is a cosmetic

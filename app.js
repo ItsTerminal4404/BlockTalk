@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsStatus = document.getElementById('settings-status');
     const passwordChangeStatus = document.getElementById('passwordChangeStatus');
     const profilePicture = document.getElementById('my-pfp');
+    let verifiedRecoverySetup = null;
     let localStream = null;
     let gun = null;
     let currentGunMap = null;
@@ -42,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const MAX_RENDERED_SERVER_MESSAGES = 500;
     const MAX_IMAGE_DATA_URL_LENGTH = 360000;
     const MAX_VOICE_DATA_URL_LENGTH = 260000;
-    const OWNER_USERNAME = 'ItsTerminal4404';
+    const OWNER_USERNAME = 'ItsTerminal4404_';
     const FOUNDER_BADGE_CUTOFF = Date.UTC(2027, 0, 1);
     const messageSentAudio = new Audio('/BlockTalk_Message_Sent.wav');
     const messageReceivedAudio = new Audio('/Message_Recived_BlockTalk.wav');
@@ -1991,7 +1992,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentPasswordInput.value = '';
             newPasswordInput.value = '';
             confirmPasswordInput.value = '';
-            passwordChangeStatus.textContent = 'Password changed. Keep your new password safe; there is no email-based recovery.';
+            passwordChangeStatus.textContent = 'Password changed. Keep it safe; email recovery is available only if you enrolled a verified recovery address.';
         } catch (error) {
             passwordChangeStatus.textContent = `Could not change password: ${error.message}`;
         } finally {
@@ -2003,6 +2004,68 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('settings-close').addEventListener('click', closeSettings);
     document.getElementById('settings-save').addEventListener('click', saveSettings);
     document.getElementById('changePasswordButton').addEventListener('click', changeAccountPassword);
+    document.getElementById('sendSettingsRecoveryCode').addEventListener('click', async () => {
+        const username = app.state.currentUser?.username;
+        const email = document.getElementById('settings-recovery-email').value.trim().toLowerCase();
+        const status = document.getElementById('settingsRecoveryStatus');
+        verifiedRecoverySetup = null;
+        status.textContent = '';
+        try {
+            const result = await app.auth.postRecoveryAction('send-code', { purpose: 'setup', username, email });
+            status.textContent = result.message;
+        } catch (error) {
+            status.textContent = error.message;
+        }
+    });
+    document.getElementById('verifySettingsRecoveryCode').addEventListener('click', async () => {
+        const username = app.state.currentUser?.username;
+        const email = document.getElementById('settings-recovery-email').value.trim().toLowerCase();
+        const code = document.getElementById('settings-recovery-code').value.trim();
+        const status = document.getElementById('settingsRecoveryStatus');
+        verifiedRecoverySetup = null;
+        status.textContent = '';
+        try {
+            const result = await app.auth.postRecoveryAction('verify-code', {
+                purpose: 'setup',
+                username,
+                email,
+                code
+            });
+            verifiedRecoverySetup = { username, email, code };
+            status.textContent = result.message;
+        } catch (error) {
+            status.textContent = error.message;
+        }
+    });
+    document.getElementById('enableSettingsRecovery').addEventListener('click', async () => {
+        const status = document.getElementById('settingsRecoveryStatus');
+        const username = app.state.currentUser?.username;
+        const pair = app.gunUser?._?.sea;
+        if (!username || !pair || !verifiedRecoverySetup ||
+            verifiedRecoverySetup.username !== username ||
+            verifiedRecoverySetup.email !== document.getElementById('settings-recovery-email').value.trim().toLowerCase() ||
+            verifiedRecoverySetup.code !== document.getElementById('settings-recovery-code').value.trim()) {
+            status.textContent = 'Verify your email code before enabling recovery.';
+            return;
+        }
+        const button = document.getElementById('enableSettingsRecovery');
+        button.disabled = true;
+        try {
+            const result = await app.auth.enrollEmailRecovery(
+                username,
+                verifiedRecoverySetup.email,
+                verifiedRecoverySetup.code,
+                pair,
+                'setup'
+            );
+            status.textContent = result.message;
+            verifiedRecoverySetup = null;
+        } catch (error) {
+            status.textContent = error.message;
+        } finally {
+            button.disabled = false;
+        }
+    });
     const profilePictureFile = document.getElementById('settings-pfp-file');
     const profilePictureDropzone = document.getElementById('profilePictureDropzone');
     async function setPendingProfilePicture(file) {
@@ -2581,7 +2644,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const status = document.getElementById('badgeTargetStatus');
         const button = document.getElementById('awardBadgeButton');
         if (app.state.currentUser?.username !== OWNER_USERNAME || !badgeTarget) {
-            status.textContent = 'Only the ItsTerminal4404 account can award these badges.';
+            status.textContent = `Only the ${OWNER_USERNAME} account can award these badges.`;
             return;
         }
         button.disabled = true;

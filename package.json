@@ -1,0 +1,12 @@
+{
+  "name": "blocktalk",
+  "version": "1.0.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^11.1.4",
+    "gun": "0.2020.1240"
+  }
+}

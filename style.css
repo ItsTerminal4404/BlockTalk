@@ -155,6 +155,56 @@ body,
     background: #099ed8;
 }
 
+.auth-recovery-row,
+.auth-recovery-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.auth-recovery-row .form-input,
+.auth-recovery-row .settings-input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.auth-recovery-button,
+.auth-recovery-link {
+    border: 1px solid var(--border-color);
+    border-radius: 2px;
+    padding: 9px 11px;
+    background: var(--bg-panel);
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.auth-recovery-button:hover,
+.auth-recovery-link:hover {
+    border-color: var(--blue);
+}
+
+.auth-recovery-link {
+    display: block;
+    margin: 10px auto 0;
+    background: transparent;
+    color: var(--blue-bright);
+}
+
+.auth-recovery-panel {
+    width: 100%;
+}
+
+.auth-recovery-panel .auth-form-title {
+    margin-bottom: 12px;
+}
+
+.auth-recovery-actions {
+    justify-content: flex-end;
+    margin-top: 14px;
+}
+
 .auth-toggle button,
 .nav-tab.active,
 .message-sender,

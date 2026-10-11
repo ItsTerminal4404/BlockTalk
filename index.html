@@ -766,6 +766,19 @@
                     <input type="password" class="form-input" id="authConfirmPassword" placeholder="Confirm password" autocomplete="new-password" required>
                     <div class="form-error" id="confirmError"></div>
                 </div>
+                <section class="form-group" id="signupRecoveryGroup">
+                    <label class="form-label" for="signupRecoveryEmail">Recovery email (required for new accounts)</label>
+                    <div class="auth-recovery-row">
+                        <input type="email" class="form-input" id="signupRecoveryEmail" maxlength="254" autocomplete="email" placeholder="you@example.com">
+                        <button type="button" class="auth-recovery-button" id="sendSignupRecoveryCode">Send code</button>
+                    </div>
+                    <label class="form-label" for="signupRecoveryCode">Email verification code</label>
+                    <div class="auth-recovery-row">
+                        <input type="text" class="form-input" id="signupRecoveryCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="6-digit code">
+                        <button type="button" class="auth-recovery-button" id="verifySignupRecoveryCode">Verify</button>
+                    </div>
+                    <p class="form-error" id="signupRecoveryStatus" role="status" aria-live="polite"></p>
+                </section>
                 <aside class="auth-security-notice" aria-label="Security notice">
                     <strong>⚠️ SECURITY NOTICE</strong>
                     <ul>
@@ -774,10 +787,29 @@
                     </ul>
                 </aside>
                 <p class="auth-account-warning">
-                    BlockTalk cannot reset a Gun password. Keep it safe; profile, friend, and block metadata is public to relay peers.
+                    Keep your password safe. Email recovery works only for accounts enrolled with a verified email.
                 </p>
                 <button type="submit" class="auth-button" id="authSubmitBtn">Sign Up</button>
+                <button type="button" class="auth-recovery-link hidden" id="forgotPasswordButton">Forgot password?</button>
             </form>
+            <section class="auth-recovery-panel hidden" id="emailRecoveryPanel" aria-labelledby="emailRecoveryTitle">
+                <h2 class="auth-form-title" id="emailRecoveryTitle">Recover your account</h2>
+                <p class="settings-help">Enter your username to receive a reset code at the recovery email registered for that account.</p>
+                <label class="form-label" for="recoveryUsername">Username</label>
+                <input type="text" class="form-input" id="recoveryUsername" maxlength="32" autocomplete="username" placeholder="Your BlockTalk username">
+                <button type="button" class="auth-recovery-button" id="sendAccountRecoveryCode">Email me a code</button>
+                <label class="form-label" for="accountRecoveryCode">Email code</label>
+                <input type="text" class="form-input" id="accountRecoveryCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}">
+                <label class="form-label" for="recoveryNewPassword">New password</label>
+                <input type="password" class="form-input" id="recoveryNewPassword" autocomplete="new-password" minlength="12">
+                <label class="form-label" for="recoveryConfirmPassword">Confirm new password</label>
+                <input type="password" class="form-input" id="recoveryConfirmPassword" autocomplete="new-password" minlength="12">
+                <p class="form-error" id="accountRecoveryStatus" role="status" aria-live="polite"></p>
+                <div class="auth-recovery-actions">
+                    <button type="button" class="settings-close-button" id="cancelAccountRecovery">Back to sign in</button>
+                    <button type="button" class="auth-button" id="completeAccountRecovery">Reset password</button>
+                </div>
+            </section>
             <div class="auth-toggle">
                 <span id="toggleText">Already have an account? </span>
                 <button type="button" id="authToggleBtn">Sign In</button>
@@ -979,6 +1011,22 @@
                 <option value="cyberpunk">Cyberpunk Grey</option>
                 <option value="light">Classic Light</option>
             </select>
+            <section class="settings-account-section" aria-labelledby="settings-recovery-title">
+                <h3 class="settings-section-title" id="settings-recovery-title">Email account recovery</h3>
+                <p class="settings-help">Link a verified email to recover this Gun account if you forget its password. Anyone who controls this email can reset access.</p>
+                <label class="settings-label" for="settings-recovery-email">Recovery email</label>
+                <div class="auth-recovery-row">
+                    <input class="settings-input" id="settings-recovery-email" type="email" maxlength="254" autocomplete="email">
+                    <button type="button" class="add-friend-button" id="sendSettingsRecoveryCode">Send code</button>
+                </div>
+                <label class="settings-label" for="settings-recovery-code">Verification code</label>
+                <div class="auth-recovery-row">
+                    <input class="settings-input" id="settings-recovery-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6">
+                    <button type="button" class="add-friend-button" id="verifySettingsRecoveryCode">Verify</button>
+                </div>
+                <button type="button" class="settings-save-button" id="enableSettingsRecovery">Enable email recovery</button>
+                <p class="settings-status" id="settingsRecoveryStatus" role="status" aria-live="polite"></p>
+            </section>
             <section class="settings-account-section" aria-labelledby="settings-audio-title">
                 <h3 class="settings-section-title" id="settings-audio-title">Audio</h3>
                 <label class="settings-audio-option">
@@ -1034,7 +1082,7 @@
             <p class="profile-status" id="profileModalStatus" role="status" aria-live="polite"></p>
             <section class="owner-badge-tools hidden" id="ownerBadgeTools">
                 <h3>Owner award tools</h3>
-                <p class="settings-help">Only ItsTerminal4404 can issue these signed awards.</p>
+                <p class="settings-help">Only ItsTerminal4404_ can issue these signed awards.</p>
                 <label class="settings-label" for="badgeTargetUsername">Find a registered username</label>
                 <div class="server-form-row">
                     <input class="settings-input" id="badgeTargetUsername" maxlength="32" placeholder="Username">
@@ -1449,6 +1497,131 @@
             auth: {
                 isSignUpMode: true,
                 isSubmitting: false,
+                verifiedRecoveryEmail: '',
+                verifiedRecoveryCode: '',
+
+                postRecoveryAction: async function(action, fields) {
+                    const response = await fetch('/.netlify/functions/email-recovery', {
+                        method: 'POST',
+                        headers: { 'content-type': 'application/json' },
+                        body: JSON.stringify({ action, ...fields })
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.error || 'Email recovery request failed.');
+                    return result;
+                },
+
+                sendSignupRecoveryCode: async function() {
+                    const email = document.getElementById('signupRecoveryEmail').value.trim().toLowerCase();
+                    const status = document.getElementById('signupRecoveryStatus');
+                    status.textContent = '';
+                    try {
+                        const result = await this.postRecoveryAction('send-code', { purpose: 'signup', email });
+                        status.textContent = result.message;
+                    } catch (error) {
+                        status.textContent = error.message;
+                    }
+                },
+
+                verifySignupRecoveryCode: async function() {
+                    const email = document.getElementById('signupRecoveryEmail').value.trim().toLowerCase();
+                    const code = document.getElementById('signupRecoveryCode').value.trim();
+                    const status = document.getElementById('signupRecoveryStatus');
+                    status.textContent = '';
+                    this.verifiedRecoveryEmail = '';
+                    this.verifiedRecoveryCode = '';
+                    try {
+                        const result = await this.postRecoveryAction('verify-code', {
+                            purpose: 'signup',
+                            email,
+                            code
+                        });
+                        this.verifiedRecoveryEmail = email;
+                        this.verifiedRecoveryCode = code;
+                        status.textContent = result.message;
+                    } catch (error) {
+                        status.textContent = error.message;
+                    }
+                },
+
+                enrollEmailRecovery: async function(username, email, code, pair, purpose = 'signup') {
+                    const payload = { username, email, pub: pair?.pub, timestamp: Date.now() };
+                    const signature = await BlockTalk.getGunSea().sign(JSON.stringify(payload), pair);
+                    if (typeof signature !== 'string') throw new Error('Could not sign the recovery enrollment.');
+                    return this.postRecoveryAction('enroll', { purpose, code, payload, signature, pair });
+                },
+
+                requestPasswordRecovery: async function() {
+                    const username = document.getElementById('recoveryUsername').value.trim();
+                    const status = document.getElementById('accountRecoveryStatus');
+                    status.textContent = '';
+                    try {
+                        const result = await this.postRecoveryAction('request-reset', { username });
+                        status.textContent = result.message;
+                    } catch (error) {
+                        status.textContent = error.message;
+                    }
+                },
+
+                completePasswordRecovery: async function() {
+                    const username = document.getElementById('recoveryUsername').value.trim();
+                    const code = document.getElementById('accountRecoveryCode').value.trim();
+                    const newPassword = document.getElementById('recoveryNewPassword').value;
+                    const confirmPassword = document.getElementById('recoveryConfirmPassword').value;
+                    const status = document.getElementById('accountRecoveryStatus');
+                    status.textContent = '';
+                    if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username)) {
+                        status.textContent = 'Enter a valid BlockTalk username.';
+                        return;
+                    }
+                    if (newPassword.length < 12) {
+                        status.textContent = 'Use a new password with at least 12 characters.';
+                        return;
+                    }
+                    if (newPassword !== confirmPassword) {
+                        status.textContent = 'The new passwords do not match.';
+                        return;
+                    }
+                    const button = document.getElementById('completeAccountRecovery');
+                    button.disabled = true;
+                    try {
+                        const result = await this.postRecoveryAction('complete-reset', {
+                            username,
+                            code,
+                            newPassword
+                        });
+                        const canonicalUsername = result.username;
+                        BlockTalk.initializeGun();
+                        const registeredPub = await BlockTalk.lookupUserPub(canonicalUsername);
+                        if (!registeredPub || registeredPub !== result.pair?.pub) {
+                            throw new Error('The recovery key does not match this BlockTalk username.');
+                        }
+                        const user = BlockTalk.gun.user();
+                        BlockTalk.gunUser = user;
+                        await new Promise((resolve, reject) => {
+                            const timeout = setTimeout(
+                                () => reject(new Error('Password reset timed out. Request a new code and try again.')),
+                                20000
+                            );
+                            user.auth(result.pair, acknowledgement => {
+                                clearTimeout(timeout);
+                                if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
+                                else resolve(acknowledgement);
+                            }, { change: newPassword });
+                        });
+                        await BlockTalk.activateGunAccount(canonicalUsername, user.is || { pub: result.pair.pub });
+                        document.getElementById('recoveryNewPassword').value = '';
+                        document.getElementById('recoveryConfirmPassword').value = '';
+                        document.getElementById('accountRecoveryCode').value = '';
+                        status.textContent = 'Password reset and account recovered.';
+                    } catch (error) {
+                        BlockTalk.gunUser?.leave?.();
+                        BlockTalk.gunUser = null;
+                        status.textContent = error.message;
+                    } finally {
+                        button.disabled = false;
+                    }
+                },
 
                 toggleMode: function() {
                     this.isSignUpMode = !this.isSignUpMode;
@@ -1463,6 +1636,11 @@
                     document.getElementById('authConfirmPassword').required = this.isSignUpMode;
                     document.getElementById('authPassword').autocomplete =
                         this.isSignUpMode ? 'new-password' : 'current-password';
+                    document.getElementById('signupRecoveryGroup').classList.toggle('hidden', !this.isSignUpMode);
+                    document.getElementById('forgotPasswordButton').classList.toggle('hidden', this.isSignUpMode);
+                    this.verifiedRecoveryEmail = '';
+                    this.verifiedRecoveryCode = '';
+                    document.getElementById('signupRecoveryStatus').textContent = '';
                 },
 
                 handleSubmit: async function(e) {
@@ -1490,6 +1668,14 @@
 
                     if (this.isSignUpMode && password !== confirmPassword) {
                         this.showError('confirmError', 'Passwords do not match');
+                        return;
+                    }
+                    const recoveryEmail = document.getElementById('signupRecoveryEmail').value.trim().toLowerCase();
+                    const recoveryCode = document.getElementById('signupRecoveryCode').value.trim();
+                    if (this.isSignUpMode &&
+                        (!recoveryEmail || recoveryEmail !== this.verifiedRecoveryEmail ||
+                            recoveryCode !== this.verifiedRecoveryCode)) {
+                        this.showError('signupRecoveryStatus', 'Verify the recovery email before creating your account.');
                         return;
                     }
 
@@ -1537,7 +1723,27 @@
                                 else resolve(acknowledgement);
                             });
                         });
+                        let recoveryEnrollmentError = null;
+                        if (isNewAccount) {
+                            try {
+                                await this.enrollEmailRecovery(
+                                    username,
+                                    recoveryEmail,
+                                    recoveryCode,
+                                    user._?.sea,
+                                    'signup'
+                                );
+                            } catch (error) {
+                                recoveryEnrollmentError = error;
+                            }
+                        }
                         await BlockTalk.activateGunAccount(username, authentication, isNewAccount);
+                        if (recoveryEnrollmentError) {
+                            document.getElementById('callAlert').textContent =
+                                `Account created, but email recovery could not be enabled. Open Settings to retry. ${recoveryEnrollmentError.message}`;
+                        }
+                        this.verifiedRecoveryEmail = '';
+                        this.verifiedRecoveryCode = '';
                         document.getElementById('authForm').reset();
                     } catch (error) {
                         const message = error?.message || String(error);
@@ -2158,6 +2364,30 @@
         BlockTalk.setupEventListeners = function() {
             // Auth events
             document.getElementById('authForm').addEventListener('submit', (e) => this.auth.handleSubmit(e));
+            document.getElementById('sendSignupRecoveryCode').addEventListener('click', () => {
+                this.auth.sendSignupRecoveryCode();
+            });
+            document.getElementById('verifySignupRecoveryCode').addEventListener('click', () => {
+                this.auth.verifySignupRecoveryCode();
+            });
+            document.getElementById('forgotPasswordButton').addEventListener('click', () => {
+                document.getElementById('authForm').classList.add('hidden');
+                document.getElementById('authToggleBtn').parentElement.classList.add('hidden');
+                document.getElementById('emailRecoveryPanel').classList.remove('hidden');
+                document.getElementById('recoveryUsername').focus();
+            });
+            document.getElementById('cancelAccountRecovery').addEventListener('click', () => {
+                document.getElementById('emailRecoveryPanel').classList.add('hidden');
+                document.getElementById('authForm').classList.remove('hidden');
+                document.getElementById('authToggleBtn').parentElement.classList.remove('hidden');
+                document.getElementById('accountRecoveryStatus').textContent = '';
+            });
+            document.getElementById('sendAccountRecoveryCode').addEventListener('click', () => {
+                this.auth.requestPasswordRecovery();
+            });
+            document.getElementById('completeAccountRecovery').addEventListener('click', () => {
+                this.auth.completePasswordRecovery();
+            });
 
             // App events
             document.getElementById('logoutBtn').addEventListener('click', () => this.logout());
