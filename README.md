@@ -17,10 +17,12 @@ access require HTTPS in production (localhost is allowed for local development).
 The current official deployment is `https://webblocktalk.netlify.app/`.
 
 Gun identities are separate from the former Node-server accounts. Existing
-server accounts are not migrated; users must create a new Gun account. Gun
-passwords cannot be reset by BlockTalk, so users must keep them safe. Accounts
-are associated with the configured relay's Gun alias directory; changing or
-losing access to that relay can affect account discovery and availability.
+server accounts are not migrated; users must create a new Gun account. While
+signed in, users can change their password from Settings by entering the
+current password and confirming a new one. There is no email-based recovery;
+lost passwords cannot be recovered, so users must keep them safe. Accounts are
+associated with the configured relay's Gun alias directory; changing or losing
+access to that relay can affect account discovery and availability.
 
 ## Install and offline behavior
 
@@ -47,6 +49,13 @@ in Gun. Profile pictures can be dropped into Settings or selected from disk;
 they are compressed to at most 160 KB and stored as public profile data. Media
 is not uploaded to a separate file host. Large attachments may exceed limits
 or be rejected by community relays, which do not guarantee storage.
+Message sent and received sounds play for successfully delivered and newly
+received chat messages. The call ringtone loops while a direct call is ringing
+and stops when it is answered, declined, cancelled, or times out. Audio playback
+may require the browser to have received a prior user interaction. Sent and
+received sounds can be controlled separately, and ringtone playback and volume
+can be adjusted in Settings. These audio preferences are saved in the current
+browser and do not sync between devices.
 
 ## Private servers
 
@@ -59,20 +68,34 @@ they do not automatically sync to other devices. Anyone who obtains an invite
 code can read and post in that server, and this client currently has no
 moderation, removal, or invite-revocation controls. Server metadata and message
 sender/timestamp information are not encrypted. Server posts are signed by the
-sender's Gun account so clients can reject username impersonation.
+sender's Gun account so clients can reject username impersonation. Server
+voice-call host and live-call status metadata are also visible on the relay.
 
-## Public profile badges
+Members can start an opt-in server voice call. Other members must select
+**Join Server Call** before their microphone or incoming call audio is
+connected. Joined participants connect directly to one another; server voice
+currently supports audio only. A direct-message call and a server call cannot
+be active at the same time.
+
+Account Settings lets members add a public bio of up to 500 characters. It is
+shown on their profile alongside their badges.
+
+## Public badges and chat titles
 
 Profiles show an Early OG badge when the account was newly registered before
 January 1, 2027, and the BlockTalk Owner badge for the exact
-`ItsTerminal4404` account. The owner can look up registered usernames and
-award the signed "Met the Owner" or "Owner's Friend" badge. Those owner-issued
-badge claims are cryptographically verified by clients. Profiles and badges
-are public Gun data. Accounts created before account creation timestamps were
-added may not have a verifiable join date and will not automatically receive
-the Early OG badge. The date is a public profile value, so the Early OG badge
-is a cosmetic client-side marker rather than an independently audited
-registration record.
+`ItsTerminal4404` account. In addition, the owner can award 30 collectible
+badges and 26 chat titles from a profile's owner tools, as well as special
+badges such as Beta Tester for people who help test the app. These awards are
+issued only by `ItsTerminal4404`; collectible badges and titles are not
+automatically unlocked by activity or gameplay. A user's most recently
+awarded title appears beside their name in DM and server text messages and on
+their profile. Owner awards are signed and verified against the owner's Gun
+account key. Profiles, badges, and titles are public Gun data. Accounts
+created before account creation timestamps were added may not have a
+verifiable join date and will not automatically receive the Early OG badge.
+The date is a public profile value, so the Early OG badge is a cosmetic
+client-side marker rather than an independently audited registration record.
 
 ## Direct-message privacy
 

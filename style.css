@@ -422,6 +422,25 @@ body,
     box-shadow: 0 18px 55px #0008;
 }
 
+.settings-account-section {
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border-color);
+}
+
+.settings-section-title {
+    margin: 0 0 8px;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.settings-help {
+    margin-bottom: 12px;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.5;
+}
+
 .settings-kicker {
     margin-bottom: 8px;
     color: var(--muted);
@@ -453,9 +472,21 @@ body,
     font-size: 12px;
 }
 
+.settings-bio-input {
+    display: block;
+    min-height: 96px;
+    resize: vertical;
+}
+
 .settings-input:focus {
     outline: 1px solid var(--blue);
     border-color: var(--blue);
+}
+
+.settings-input[type="range"] {
+    min-height: 24px;
+    padding: 0;
+    accent-color: var(--blue);
 }
 
 .settings-status {
@@ -469,6 +500,14 @@ body,
     display: flex;
     justify-content: flex-end;
     gap: 8px;
+    margin-top: 12px;
+}
+
+.settings-actions .logout-button {
+    margin-right: auto;
+}
+
+.settings-account-section > .settings-save-button {
     margin-top: 12px;
 }
 
@@ -664,6 +703,10 @@ body,
     box-shadow: 0 10px 30px #0008;
 }
 
+.emoji-picker.hidden {
+    display: none;
+}
+
 .emoji-choice {
     min-height: 34px;
     font-size: 19px;
@@ -778,6 +821,21 @@ body,
     padding-right: 24px;
 }
 
+.server-call-participants {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin: 8px 0;
+}
+
+.server-call-participant {
+    padding: 5px 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-main);
+    color: var(--text-primary);
+    font-size: 11px;
+}
+
 .profile-picture-large {
     display: grid;
     flex: 0 0 64px;
@@ -797,6 +855,15 @@ body,
     color: var(--blue-bright);
     font-size: 18px;
     overflow-wrap: anywhere;
+}
+
+.profile-bio {
+    margin-top: 16px;
+    color: var(--text-primary);
+    font-size: 12px;
+    line-height: 1.6;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
 }
 
 .profile-badges {
@@ -825,6 +892,34 @@ body,
     color: #8be0a5;
 }
 
+.profile-badge.beta-tester-badge {
+    border-color: #63d9ff;
+    color: #63d9ff;
+}
+
+.profile-badge.collectable-badge {
+    border-color: #c58cff;
+    color: #d9b6ff;
+}
+
+.profile-chat-title {
+    margin-top: 4px;
+    color: #ffc857;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.chat-title-tag {
+    display: inline-block;
+    padding: 2px 6px;
+    border: 1px solid #ffc85766;
+    border-radius: 2px;
+    color: #ffc857;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
 .profile-status,
 .profile-no-badges {
     margin-top: 12px;
@@ -845,6 +940,19 @@ body,
 
 .owner-badge-tools .settings-input {
     flex: 1 1 auto;
+}
+
+.settings-audio-option {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin: 12px 0;
+    color: var(--text-primary);
+    font-size: 12px;
+}
+
+.settings-audio-option input {
+    accent-color: var(--blue);
 }
 
 @media (max-width: 560px) {

@@ -1,10 +1,13 @@
-const CACHE_NAME = 'blocktalk-shell-v6';
+const CACHE_NAME = 'blocktalk-shell-v11';
 const SHELL_ASSETS = [
     '/',
     '/index.html',
     '/app.js',
     '/style.css',
     '/logo.png',
+    '/BlockTalk_Message_Sent.wav',
+    '/Message_Recived_BlockTalk.wav',
+    '/BlockTalk%20Ringtone.mp3',
     '/manifest.json',
     '/icons/blocktalk.svg'
 ];

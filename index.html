@@ -798,7 +798,6 @@
                         <div class="my-pfp" id="my-pfp" role="button" tabindex="0" aria-label="Open your profile">--</div>
                         <div class="user-label" id="userLabel">As: user1</div>
                     </div>
-                    <button class="logout-button" id="logoutBtn">Logout</button>
                 </div>
                 <div class="user-status">Connected to BlockTalk</div>
             </div>
@@ -900,6 +899,7 @@
                         <span class="voice-participant-name" id="remote-call-name">Recipient</span>
                     </div>
                 </div>
+                <div class="server-call-participants hidden" id="serverCallParticipants" aria-label="Server call participants"></div>
                 <video class="screen-share-preview hidden" id="screen-share-preview" autoplay muted playsinline></video>
                 <video class="screen-share-preview hidden" id="remote-screen-preview" autoplay playsinline></video>
                 <audio id="remote-call-audio" autoplay></audio>
@@ -944,7 +944,7 @@
                 <div class="input-wrapper">
                     <textarea class="message-input" id="messageInput" placeholder="Type a message..." maxlength="2000"></textarea>
                     <div class="message-tools">
-                        <button type="button" class="message-tool-button" id="emojiPickerButton" aria-label="Choose emoji" title="Choose emoji">☺</button>
+                        <button type="button" class="message-tool-button" id="emojiPickerButton" aria-label="Choose emoji" aria-expanded="false" aria-controls="emojiPicker" title="Choose emoji">☺</button>
                         <button type="button" class="message-tool-button" id="attachButton" aria-label="Attach an image" title="Attach image">＋ Image</button>
                         <button type="button" class="message-tool-button" id="recordVoiceButton" aria-label="Record voice snippet">Record</button>
                         <input id="attachmentInput" type="file" accept="image/*" hidden>
@@ -965,6 +965,9 @@
             <h2 class="settings-title" id="settings-title">Account Settings</h2>
             <label class="settings-label" for="settings-pfp-url">Profile Picture URL (optional)</label>
             <input class="settings-input" id="settings-pfp-url" type="url" placeholder="https://example.com/avatar.png" autocomplete="url">
+            <label class="settings-label" for="settings-bio">Bio (visible on your public profile)</label>
+            <textarea class="settings-input settings-bio-input" id="settings-bio" maxlength="500"
+                placeholder="Tell people a little about yourself" rows="4"></textarea>
             <label class="settings-label" for="settings-pfp-file">Or choose / drop an image</label>
             <label class="profile-picture-dropzone" id="profilePictureDropzone" for="settings-pfp-file">
                 <span id="profilePictureDropzoneText">Drop a picture here or browse (WebP/JPEG/PNG, max 160 KB)</span>
@@ -976,8 +979,40 @@
                 <option value="cyberpunk">Cyberpunk Grey</option>
                 <option value="light">Classic Light</option>
             </select>
+            <section class="settings-account-section" aria-labelledby="settings-audio-title">
+                <h3 class="settings-section-title" id="settings-audio-title">Audio</h3>
+                <label class="settings-audio-option">
+                    <input id="settings-sent-message-sound" type="checkbox">
+                    <span>Play sent-message sound</span>
+                </label>
+                <label class="settings-audio-option">
+                    <input id="settings-received-message-sound" type="checkbox">
+                    <span>Play received-message sound</span>
+                </label>
+                <label class="settings-audio-option">
+                    <input id="settings-call-ringtone" type="checkbox">
+                    <span>Play the looping call ringtone</span>
+                </label>
+                <label class="settings-label" for="settings-ringtone-volume">
+                    Ringtone volume <span id="settings-ringtone-volume-value">70%</span>
+                </label>
+                <input class="settings-input" id="settings-ringtone-volume" type="range" min="0" max="100" step="1" value="70">
+            </section>
+            <section class="settings-account-section" aria-labelledby="settings-password-title">
+                <h3 class="settings-section-title" id="settings-password-title">Change Password</h3>
+                <p class="settings-help">Enter your current password, then choose and confirm a new password. Gun accounts do not have email-based password recovery.</p>
+                <label class="settings-label" for="currentPassword">Current password</label>
+                <input class="settings-input" id="currentPassword" type="password" autocomplete="current-password">
+                <label class="settings-label" for="newPassword">New password</label>
+                <input class="settings-input" id="newPassword" type="password" autocomplete="new-password" minlength="12">
+                <label class="settings-label" for="confirmNewPassword">Confirm new password</label>
+                <input class="settings-input" id="confirmNewPassword" type="password" autocomplete="new-password" minlength="12">
+                <button type="button" class="settings-save-button" id="changePasswordButton">Change Password</button>
+                <p class="settings-status" id="passwordChangeStatus" role="status" aria-live="polite"></p>
+            </section>
             <p class="settings-status" id="settings-status" role="status" aria-live="polite"></p>
             <div class="settings-actions">
+                <button type="button" class="logout-button" id="logoutBtn">Logout</button>
                 <button type="button" class="settings-close-button" id="settings-close">Close</button>
                 <button type="button" class="settings-save-button" id="settings-save">Save Changes</button>
             </div>
@@ -991,23 +1026,28 @@
                 <div class="profile-picture-large" id="profileModalPicture">?</div>
                 <div>
                     <h2 class="profile-title" id="profileModalTitle">Profile</h2>
+                    <p class="profile-chat-title hidden" id="profileModalChatTitle"></p>
                     <div class="profile-badges" id="profileModalBadges"></div>
                 </div>
             </div>
+            <p class="profile-bio" id="profileModalBio"></p>
             <p class="profile-status" id="profileModalStatus" role="status" aria-live="polite"></p>
             <section class="owner-badge-tools hidden" id="ownerBadgeTools">
-                <h3>Owner badge tools</h3>
+                <h3>Owner award tools</h3>
+                <p class="settings-help">Only ItsTerminal4404 can issue these signed awards.</p>
                 <label class="settings-label" for="badgeTargetUsername">Find a registered username</label>
                 <div class="server-form-row">
                     <input class="settings-input" id="badgeTargetUsername" maxlength="32" placeholder="Username">
                     <button type="button" class="add-friend-button" id="findBadgeTarget">Find</button>
                 </div>
                 <p id="badgeTargetStatus" role="status" aria-live="polite"></p>
+                <label class="settings-label" for="ownerAwardType">Award type</label>
                 <div class="server-form-row">
-                    <select class="settings-input" id="badgeType">
-                        <option value="met-owner">Met the Owner</option>
-                        <option value="owner-friend">Owner's Friend</option>
+                    <select class="settings-input" id="ownerAwardType">
+                        <option value="badge">Collectable badge</option>
+                        <option value="title">Chat title</option>
                     </select>
+                    <select class="settings-input" id="ownerAwardSelection"></select>
                     <button type="button" class="add-friend-button" id="awardBadgeButton" disabled>Award</button>
                 </div>
             </section>
@@ -1548,6 +1588,7 @@
                         .map(([key, entry]) => entry === true ? decodeURIComponent(key) : entry);
                 };
                 return {
+                    bio: typeof profile.bio === 'string' ? profile.bio.slice(0, 500) : '',
                     profilePictureUrl: typeof profile.profilePictureUrl === 'string' ? profile.profilePictureUrl : '',
                     accountCreatedAt: Number.isFinite(profile.accountCreatedAt) ? profile.accountCreatedAt : 0,
                     theme: ['terminal', 'cyberpunk', 'light'].includes(profile.theme) ? profile.theme : 'terminal',
@@ -1573,6 +1614,7 @@
             serializeUserProfile: function(profile) {
                 const normalized = this.createUserProfile(profile);
                 return {
+                    bio: normalized.bio,
                     profilePictureUrl: normalized.profilePictureUrl,
                     accountCreatedAt: normalized.accountCreatedAt,
                     theme: normalized.theme,

@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsPfpUrl = document.getElementById('settings-pfp-url');
     const settingsTheme = document.getElementById('settings-theme');
     const settingsStatus = document.getElementById('settings-status');
+    const passwordChangeStatus = document.getElementById('passwordChangeStatus');
     const profilePicture = document.getElementById('my-pfp');
     let localStream = null;
     let gun = null;
@@ -36,12 +37,97 @@ document.addEventListener('DOMContentLoaded', () => {
     let gunObserverGeneration = 0;
     const pendingGunMessageIds = new Set();
     const seenCallSignalIds = new Set();
+    const seenServerVoiceSignalIds = new Set();
     const MAX_DIRECT_PACKET_LENGTH = 900000;
     const MAX_RENDERED_SERVER_MESSAGES = 500;
     const MAX_IMAGE_DATA_URL_LENGTH = 360000;
     const MAX_VOICE_DATA_URL_LENGTH = 260000;
     const OWNER_USERNAME = 'ItsTerminal4404';
     const FOUNDER_BADGE_CUTOFF = Date.UTC(2027, 0, 1);
+    const messageSentAudio = new Audio('/BlockTalk_Message_Sent.wav');
+    const messageReceivedAudio = new Audio('/Message_Recived_BlockTalk.wav');
+    const callRingtoneAudio = new Audio('/BlockTalk%20Ringtone.mp3');
+    const AUDIO_PREFERENCES_KEY = 'blocktalk:audio-preferences-v1';
+    const defaultAudioPreferences = {
+        sentMessageSound: true,
+        receivedMessageSound: true,
+        callRingtone: true,
+        ringtoneVolume: 0.7
+    };
+    let audioPreferences = { ...defaultAudioPreferences };
+    let ringtoneRequested = false;
+    [messageSentAudio, messageReceivedAudio, callRingtoneAudio].forEach(audio => {
+        audio.preload = 'auto';
+    });
+    const OWNER_BADGE_CATALOG = [
+        { id: 'welcome-wagon', name: 'Welcome Wagon', category: 'Community & Status' },
+        { id: 'community-pillar', name: 'Community Pillar', category: 'Community & Status' },
+        { id: 'server-regular', name: 'Server Regular', category: 'Community & Status' },
+        { id: 'bridge-builder', name: 'Bridge Builder', category: 'Community & Status' },
+        { id: 'good-neighbor', name: 'Good Neighbor', category: 'Community & Status' },
+        { id: 'daily-spark', name: 'Daily Spark', category: 'Activity & Engagement' },
+        { id: 'conversation-starter', name: 'Conversation Starter', category: 'Activity & Engagement' },
+        { id: 'streak-keeper', name: 'Streak Keeper', category: 'Activity & Engagement' },
+        { id: 'helpful-hand', name: 'Helpful Hand', category: 'Activity & Engagement' },
+        { id: 'marathon-chatter', name: 'Marathon Chatter', category: 'Activity & Engagement' },
+        { id: 'soundcheck', name: 'Soundcheck', category: 'Music & Audio' },
+        { id: 'voice-vibes', name: 'Voice Vibes', category: 'Music & Audio' },
+        { id: 'mixtape-maker', name: 'Mixtape Maker', category: 'Music & Audio' },
+        { id: 'audio-aficionado', name: 'Audio Aficionado', category: 'Music & Audio' },
+        { id: 'high-score', name: 'High Score', category: 'Gaming & Mini-Games' },
+        { id: 'gg-champion', name: 'GG Champion', category: 'Gaming & Mini-Games' },
+        { id: 'puzzle-solver', name: 'Puzzle Solver', category: 'Gaming & Mini-Games' },
+        { id: 'streak-winner', name: 'Streak Winner', category: 'Gaming & Mini-Games' },
+        { id: 'party-player', name: 'Party Player', category: 'Gaming & Mini-Games' },
+        { id: 'bug-spotter', name: 'Bug Spotter', category: 'Technical & Support' },
+        { id: 'fix-it-friend', name: 'Fix-It Friend', category: 'Technical & Support' },
+        { id: 'code-whisperer', name: 'Code Whisperer', category: 'Technical & Support' },
+        { id: 'test-pilot', name: 'Test Pilot', category: 'Technical & Support' },
+        { id: 'knowledge-base', name: 'Knowledge Base', category: 'Technical & Support' },
+        { id: 'meme-machine', name: 'Meme Machine', category: 'Fun & Social Quirks' },
+        { id: 'emoji-enthusiast', name: 'Emoji Enthusiast', category: 'Fun & Social Quirks' },
+        { id: 'night-owl', name: 'Night Owl', category: 'Fun & Social Quirks' },
+        { id: 'early-bird', name: 'Early Bird', category: 'Fun & Social Quirks' },
+        { id: 'chaos-coordinator', name: 'Chaos Coordinator', category: 'Fun & Social Quirks' },
+        { id: 'good-sport', name: 'Good Sport', category: 'Fun & Social Quirks' }
+    ];
+    const OWNER_TITLE_CATALOG = [
+        { id: 'server-founder', name: 'Server Founder', category: 'Administration & Authority' },
+        { id: 'community-guardian', name: 'Community Guardian', category: 'Administration & Authority' },
+        { id: 'trusted-moderator', name: 'Trusted Moderator', category: 'Administration & Authority' },
+        { id: 'event-organizer', name: 'Event Organizer', category: 'Administration & Authority' },
+        { id: 'support-lead', name: 'Support Lead', category: 'Administration & Authority' },
+        { id: 'owners-choice', name: "Owner's Choice", category: 'Administration & Authority' },
+        { id: 'tactician', name: 'Tactician', category: 'Skill & Strategy' },
+        { id: 'strategist', name: 'Strategist', category: 'Skill & Strategy' },
+        { id: 'clutch-player', name: 'Clutch Player', category: 'Skill & Strategy' },
+        { id: 'quick-thinker', name: 'Quick Thinker', category: 'Skill & Strategy' },
+        { id: 'puzzle-master', name: 'Puzzle Master', category: 'Skill & Strategy' },
+        { id: 'mvp', name: 'MVP', category: 'Skill & Strategy' },
+        { id: 'friendly-face', name: 'Friendly Face', category: 'Social & Persona' },
+        { id: 'conversation-starter', name: 'Conversation Starter', category: 'Social & Persona' },
+        { id: 'welcoming-voice', name: 'Welcoming Voice', category: 'Social & Persona' },
+        { id: 'community-guide', name: 'Community Guide', category: 'Social & Persona' },
+        { id: 'good-listener', name: 'Good Listener', category: 'Social & Persona' },
+        { id: 'hype-person', name: 'Hype Person', category: 'Social & Persona' },
+        { id: 'peacekeeper', name: 'Peacekeeper', category: 'Social & Persona' },
+        { id: 'certified-goofball', name: 'Certified Goofball', category: 'Fun & Playful Statuses' },
+        { id: 'night-owl', name: 'Night Owl', category: 'Fun & Playful Statuses' },
+        { id: 'emoji-wizard', name: 'Emoji Wizard', category: 'Fun & Playful Statuses' },
+        { id: 'chaos-gremlin', name: 'Chaos Gremlin', category: 'Fun & Playful Statuses' },
+        { id: 'snack-break', name: 'Snack Break', category: 'Fun & Playful Statuses' },
+        { id: 'afk-legend', name: 'AFK Legend', category: 'Fun & Playful Statuses' },
+        { id: 'main-character', name: 'Main Character', category: 'Fun & Playful Statuses' }
+    ];
+    const SPECIAL_OWNER_BADGES = [
+        { id: 'met-owner', name: 'Met the Owner', style: 'met-owner-badge' },
+        { id: 'owner-friend', name: "Owner's Friend", style: 'friend-badge' },
+        { id: 'beta-tester', name: 'Beta Tester', style: 'beta-tester-badge' }
+    ];
+    const ownerAwardCache = new Map();
+    const renderedTitleCache = new Map();
+    const RENDERED_TITLE_CACHE_TTL = 60000;
+    let chatTitleRenderGeneration = 0;
     const SERVER_STORAGE_PREFIX = 'blocktalk:servers-v1:';
     const ATTACHMENT_PREFIX = 'blocktalk-media-v1:';
     const commonEmojis = [
@@ -62,6 +148,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeServerGeneration = 0;
     let activeServer = null;
     let activeServerKey = null;
+    let activeServerVoiceObserver = null;
+    let activeServerVoiceSignalObserver = null;
+    let activeServerVoiceState = null;
+    let serverVoiceExpiryTimer = 0;
+    let serverCall = null;
+    let serverCallHeartbeat = 0;
+    let serverCallJoinTimer = 0;
     let recordingStream = null;
     let voiceRecorder = null;
     let voiceChunks = [];
@@ -209,6 +302,92 @@ document.addEventListener('DOMContentLoaded', () => {
         return { content: '', attachment };
     }
 
+    function playMessageSound(audio, description, enabled) {
+        if (!enabled) return;
+        audio.currentTime = 0;
+        audio.play().catch(error => {
+            console.warn(`BlockTalk could not play the ${description} sound:`, error);
+        });
+    }
+
+    function startCallRingtone() {
+        if (!audioPreferences.callRingtone || ringtoneRequested) return;
+        ringtoneRequested = true;
+        callRingtoneAudio.currentTime = 0;
+        callRingtoneAudio.loop = true;
+        callRingtoneAudio.volume = audioPreferences.ringtoneVolume;
+        callRingtoneAudio.play().catch(error => {
+            ringtoneRequested = false;
+            console.warn('BlockTalk could not play the call ringtone:', error);
+        });
+    }
+
+    function stopCallRingtone() {
+        ringtoneRequested = false;
+        callRingtoneAudio.pause();
+        callRingtoneAudio.currentTime = 0;
+    }
+
+    function loadAudioPreferences() {
+        let stored;
+        try {
+            stored = window.localStorage.getItem(AUDIO_PREFERENCES_KEY);
+        } catch (error) {
+            console.warn('Could not access saved BlockTalk audio preferences:', error);
+            return { ...defaultAudioPreferences };
+        }
+        if (stored === null) return { ...defaultAudioPreferences };
+        try {
+            const parsed = JSON.parse(stored);
+            if (typeof parsed.sentMessageSound !== 'boolean' ||
+                typeof parsed.receivedMessageSound !== 'boolean' ||
+                typeof parsed.callRingtone !== 'boolean' ||
+                !Number.isFinite(parsed.ringtoneVolume) ||
+                parsed.ringtoneVolume < 0 || parsed.ringtoneVolume > 1) {
+                throw new Error('Saved audio preferences have invalid values.');
+            }
+            return {
+                sentMessageSound: parsed.sentMessageSound,
+                receivedMessageSound: parsed.receivedMessageSound,
+                callRingtone: parsed.callRingtone,
+                ringtoneVolume: parsed.ringtoneVolume
+            };
+        } catch (error) {
+            console.warn('Could not load BlockTalk audio preferences:', error);
+            return { ...defaultAudioPreferences };
+        }
+    }
+
+    function syncAudioPreferenceControls() {
+        document.getElementById('settings-sent-message-sound').checked = audioPreferences.sentMessageSound;
+        document.getElementById('settings-received-message-sound').checked = audioPreferences.receivedMessageSound;
+        document.getElementById('settings-call-ringtone').checked = audioPreferences.callRingtone;
+        const volumeControl = document.getElementById('settings-ringtone-volume');
+        volumeControl.value = String(Math.round(audioPreferences.ringtoneVolume * 100));
+        document.getElementById('settings-ringtone-volume-value').textContent = `${volumeControl.value}%`;
+    }
+
+    function saveAudioPreferences() {
+        const volume = Number(document.getElementById('settings-ringtone-volume').value);
+        if (!Number.isFinite(volume) || volume < 0 || volume > 100) {
+            throw new Error('Choose a ringtone volume from 0% to 100%.');
+        }
+        const nextPreferences = {
+            sentMessageSound: document.getElementById('settings-sent-message-sound').checked,
+            receivedMessageSound: document.getElementById('settings-received-message-sound').checked,
+            callRingtone: document.getElementById('settings-call-ringtone').checked,
+            ringtoneVolume: volume / 100
+        };
+        window.localStorage.setItem(AUDIO_PREFERENCES_KEY, JSON.stringify(nextPreferences));
+        audioPreferences = nextPreferences;
+        callRingtoneAudio.volume = audioPreferences.ringtoneVolume;
+        if (!audioPreferences.callRingtone) stopCallRingtone();
+        syncCallView();
+    }
+
+    audioPreferences = loadAudioPreferences();
+    callRingtoneAudio.volume = audioPreferences.ringtoneVolume;
+
     function encodeMessageContent(value) {
         if (typeof value === 'string') return value.trim();
         const attachment = validateAttachment(value);
@@ -276,7 +455,11 @@ document.addEventListener('DOMContentLoaded', () => {
     async function encryptCallSignal(payload, packet, key) {
         const iv = window.crypto.getRandomValues(new Uint8Array(12));
         const ciphertext = await window.crypto.subtle.encrypt(
-            { name: 'AES-GCM', iv, additionalData: callSignalMetadata(packet) },
+            { name: 'AES-GCM', iv, additionalData: packet.serverId
+                ? new TextEncoder().encode(JSON.stringify([
+                    packet.serverId, packet.sender, packet.recipient, packet.callId, packet.type, packet.timestamp
+                ]))
+                : callSignalMetadata(packet) },
             key,
             new TextEncoder().encode(JSON.stringify(payload))
         );
@@ -290,7 +473,11 @@ document.addEventListener('DOMContentLoaded', () => {
             {
                 name: 'AES-GCM',
                 iv: base64ToBytes(parts[1]),
-                additionalData: callSignalMetadata(packet)
+                additionalData: packet.serverId
+                    ? new TextEncoder().encode(JSON.stringify([
+                        packet.serverId, packet.sender, packet.recipient, packet.callId, packet.type, packet.timestamp
+                    ]))
+                    : callSignalMetadata(packet)
             },
             key,
             base64ToBytes(parts[2])
@@ -349,6 +536,19 @@ document.addEventListener('DOMContentLoaded', () => {
             candidate.candidate.length > 0 && candidate.candidate.length <= 4096;
     }
 
+    function removeIncomingCall(callId) {
+        const invitation = incomingCalls.get(callId);
+        if (!invitation) return false;
+        clearTimeout(invitation.ringTimeout);
+        incomingCalls.delete(callId);
+        return true;
+    }
+
+    function clearIncomingCalls() {
+        incomingCalls.forEach(invitation => clearTimeout(invitation.ringTimeout));
+        incomingCalls.clear();
+    }
+
     async function receiveCallSignal(packet, signalId, generation, peerId, key) {
         const username = app.state.currentUser?.username;
         const acceptedTypes = new Set(['offer', 'answer', 'candidate', 'decline', 'end']);
@@ -372,16 +572,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (packet.type === 'offer') {
             if (!validCallDescription(payload?.offer, 'offer') ||
-                incomingCalls.has(packet.callId) || activeCall) return;
+                incomingCalls.has(packet.callId) || activeCall || serverCall) return;
             const database = app.readDatabase();
             const profile = app.getUserProfile(database, username);
             if (isBlocked(database, peerId, username) ||
                 !profile.friends.some(friend => friend.username === peerId)) return;
-            incomingCalls.set(packet.callId, {
+            const invitation = {
                 callId: packet.callId,
                 caller: peerId,
-                offer: payload.offer
-            });
+                offer: payload.offer,
+                ringTimeout: 0
+            };
+            incomingCalls.set(packet.callId, invitation);
+            invitation.ringTimeout = window.setTimeout(() => {
+                if (incomingCalls.get(packet.callId) !== invitation) return;
+                incomingCalls.delete(packet.callId);
+                syncCallView();
+            }, 45000);
             callAlert.textContent = '';
             syncCallView();
             return;
@@ -395,7 +602,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     callStatus.textContent = 'The other participant disconnected.';
                 }
                 finishCall(false);
-            } else if (incomingCalls.delete(packet.callId)) {
+            } else if (removeIncomingCall(packet.callId)) {
                 syncCallView();
             }
             return;
@@ -508,6 +715,7 @@ document.addEventListener('DOMContentLoaded', () => {
         syncCallView();
         document.getElementById('messageInput').focus();
 
+        const messageNotificationCutoff = Date.now() - 5000;
         const observer = room.map();
         currentGunMap = observer;
         observer.on(async (packet, messageId) => {
@@ -535,6 +743,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 app.state.messages[peerId] = messages;
                 app.renderMessages();
                 app.renderDMList();
+                if (packet.sender !== username && packet.timestamp >= messageNotificationCutoff) {
+                    playMessageSound(messageReceivedAudio, 'message received', audioPreferences.receivedMessageSound);
+                }
             } catch (error) {
                 if (generation === gunObserverGeneration) {
                     document.getElementById('direct-message-key-status').textContent =
@@ -712,6 +923,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             document.getElementById('messageInput').value = '';
+            playMessageSound(messageSentAudio, 'message sent', audioPreferences.sentMessageSound);
             document.getElementById('direct-message-key-status').textContent =
                 'Encrypted message submitted to Gun. Remote sync may take time; relays can see sender and timestamp, not text.';
         } catch (error) {
@@ -773,12 +985,461 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function closeActiveServer() {
+        if (activeServerVoiceObserver) activeServerVoiceObserver.off();
+        activeServerVoiceObserver = null;
+        if (activeServerVoiceSignalObserver) activeServerVoiceSignalObserver.off();
+        activeServerVoiceSignalObserver = null;
+        clearTimeout(serverVoiceExpiryTimer);
+        serverVoiceExpiryTimer = 0;
+        if (serverCall) leaveServerCall(true);
+        activeServerVoiceState = null;
         activeServerGeneration += 1;
         if (activeServerObserver) activeServerObserver.off();
         activeServerObserver = null;
         activeServer = null;
         activeServerKey = null;
         app.serverMessagesReady = false;
+    }
+
+    function serverVoiceStatePayload(server, callId, host, updatedAt) {
+        return { serverId: server.id, callId, host, updatedAt };
+    }
+
+    function signedServerVoiceState(payload) {
+        return JSON.stringify([payload.serverId, payload.callId, payload.host, payload.updatedAt]);
+    }
+
+    async function writeServerVoiceState(callId, host) {
+        const server = activeServer;
+        const pair = app.gunUser?._?.sea;
+        if (!server || !pair?.pub) throw new Error('Sign in again before starting a server call.');
+        const payload = serverVoiceStatePayload(server, callId, host, Date.now());
+        const signature = await app.getGunSea().sign(signedServerVoiceState(payload), pair);
+        if (typeof signature !== 'string') throw new Error('Could not sign the server-call status.');
+        if (activeServer?.id !== server.id ||
+            serverCall?.serverId !== server.id || serverCall.callId !== callId) {
+            throw new Error('The server call ended before its status could be published.');
+        }
+        await app.writeGunNode(gun.get(server.id).get('voice').get('state'), { payload, signature });
+    }
+
+    async function publishServerVoiceSignal(type, callId, recipient, payload = {}) {
+        const server = activeServer;
+        const sender = app.state.currentUser?.username;
+        const pair = app.gunUser?._?.sea;
+        if (!server || !activeServerKey || !sender || !pair?.pub) {
+            throw new Error('Open a private server before using its voice channel.');
+        }
+        const packet = {
+            id: window.crypto.randomUUID(),
+            serverId: server.id,
+            sender,
+            senderPub: pair.pub,
+            recipient,
+            callId,
+            type,
+            timestamp: Date.now()
+        };
+        packet.ciphertext = await encryptCallSignal(payload, packet, activeServerKey);
+        const signedPayload = JSON.stringify([
+            packet.serverId, packet.sender, packet.senderPub, packet.recipient,
+            packet.callId, packet.type, packet.timestamp, packet.ciphertext
+        ]);
+        packet.signature = await app.getGunSea().sign(signedPayload, pair);
+        if (typeof packet.signature !== 'string') throw new Error('Could not sign the server-call signal.');
+        await app.writeGunNode(
+            gun.get(server.id).get('voice').get('signals').get(packet.id),
+            packet
+        );
+    }
+
+    async function verifyServerVoiceEnvelope(packet, server) {
+        const maxSignalAge = 24 * 60 * 60 * 1000;
+        if (!packet || packet.serverId !== server.id ||
+            typeof packet.id !== 'string' || packet.id.length > 100 ||
+            typeof packet.sender !== 'string' ||
+            !/^[a-zA-Z0-9_.-]{3,32}$/.test(packet.sender) ||
+            typeof packet.senderPub !== 'string' ||
+            typeof packet.signature !== 'string' ||
+            typeof packet.ciphertext !== 'string' || packet.ciphertext.length > 300000 ||
+            typeof packet.recipient !== 'string' ||
+            (packet.recipient !== '*' && !/^[a-zA-Z0-9_.-]{3,32}$/.test(packet.recipient)) ||
+            typeof packet.callId !== 'string' || !/^call-[a-zA-Z0-9_-]{8,100}$/.test(packet.callId) ||
+            typeof packet.type !== 'string' ||
+            !Number.isFinite(packet.timestamp) ||
+            packet.timestamp > Date.now() + 30000 ||
+            Date.now() - packet.timestamp > maxSignalAge) return false;
+        const expectedPub = await app.lookupUserPub(packet.sender);
+        if (!expectedPub || expectedPub !== packet.senderPub) return false;
+        const signedPayload = JSON.stringify([
+            packet.serverId, packet.sender, packet.senderPub, packet.recipient,
+            packet.callId, packet.type, packet.timestamp, packet.ciphertext
+        ]);
+        return await app.getGunSea().verify(packet.signature, packet.senderPub) === signedPayload;
+    }
+
+    async function acceptServerVoiceState(envelope, server) {
+        if (!envelope) {
+            clearTimeout(serverVoiceExpiryTimer);
+            serverVoiceExpiryTimer = 0;
+            activeServerVoiceState = null;
+            if (serverCall?.serverId === server.id) closeServerCallLocally();
+            syncCallView();
+            return;
+        }
+        const payload = envelope.payload;
+        if (!payload || payload.serverId !== server.id ||
+            typeof payload.callId !== 'string' || !/^call-[a-zA-Z0-9_-]{8,80}$/.test(payload.callId) ||
+            typeof payload.host !== 'string' ||
+            !/^[a-zA-Z0-9_.-]{3,32}$/.test(payload.host) ||
+            !Number.isFinite(payload.updatedAt) ||
+            payload.updatedAt > Date.now() + 30000 ||
+            Date.now() - payload.updatedAt > 75000 ||
+            typeof envelope.signature !== 'string') return;
+        const hostPub = await app.lookupUserPub(payload.host);
+        if (!hostPub) return;
+        const verified = await app.getGunSea().verify(envelope.signature, hostPub);
+        if (verified !== signedServerVoiceState(payload)) return;
+        if (activeServerVoiceState?.serverId === server.id &&
+            activeServerVoiceState.updatedAt > payload.updatedAt) return;
+        activeServerVoiceState = payload;
+        clearTimeout(serverVoiceExpiryTimer);
+        serverVoiceExpiryTimer = setTimeout(() => {
+            if (activeServerVoiceState?.callId !== payload.callId ||
+                Date.now() - payload.updatedAt <= 75000) return;
+            activeServerVoiceState = null;
+            if (serverCall?.callId === payload.callId) closeServerCallLocally();
+            syncCallView();
+        }, Math.max(0, payload.updatedAt + 75000 - Date.now()));
+        if (serverCall && (serverCall.serverId !== server.id || serverCall.callId !== payload.callId)) {
+            closeServerCallLocally();
+        }
+        syncCallView();
+    }
+
+    function closeServerPeer(username) {
+        const peer = serverCall?.peers.get(username);
+        if (!peer) return;
+        peer.connection.close();
+        peer.audio.remove();
+        serverCall.peers.delete(username);
+        const pending = serverCall.pendingCandidates.get(username);
+        if (pending) serverCall.pendingCandidates.delete(username);
+        syncServerCallParticipants();
+    }
+
+    function closeServerCallLocally() {
+        clearInterval(serverCallHeartbeat);
+        serverCallHeartbeat = 0;
+        clearTimeout(serverCallJoinTimer);
+        serverCallJoinTimer = 0;
+        if (!serverCall) return;
+        serverCall.peers.forEach(peer => {
+            peer.connection.close();
+            peer.audio.remove();
+        });
+        serverCall.peers.clear();
+        serverCall.pendingCandidates.clear();
+        serverCall.pendingOffers.clear();
+        if (serverCall.stream) serverCall.stream.getTracks().forEach(track => track.stop());
+        serverCall = null;
+        localStream = null;
+        voiceMeters.forEach(meter => {
+            cancelAnimationFrame(meter.frameId);
+            meter.context.close().catch(() => {});
+        });
+        voiceMeters.clear();
+        localCallPfp.classList.remove('voice-active-glowing');
+        remoteAudio.srcObject = null;
+        muteButton.disabled = true;
+        muteButton.textContent = 'Mute';
+        muteButton.setAttribute('aria-pressed', 'false');
+        isMuted = false;
+        syncServerCallParticipants();
+        syncCallView();
+    }
+
+    function syncServerCallParticipants() {
+        const container = document.getElementById('serverCallParticipants');
+        if (!container) return;
+        container.replaceChildren();
+        if (!serverCall) return;
+        const names = [...serverCall.members].filter(Boolean);
+        names.forEach(username => {
+            const participant = document.createElement('span');
+            participant.className = 'server-call-participant';
+            participant.textContent = `@${username}`;
+            container.appendChild(participant);
+        });
+    }
+
+    async function createServerCallPeer(username, offerer) {
+        if (!serverCall || serverCall.peers.has(username)) return;
+        const call = serverCall;
+        const connection = new RTCPeerConnection({ iceServers });
+        const audio = document.createElement('audio');
+        audio.autoplay = true;
+        audio.playsInline = true;
+        audio.dataset.peer = username;
+        callPanel.appendChild(audio);
+        const peer = { connection, audio, signalReady: false, outgoingCandidates: [] };
+        call.peers.set(username, peer);
+        call.stream.getAudioTracks().forEach(track => connection.addTrack(track, call.stream));
+        connection.ontrack = event => {
+            if (serverCall !== call || !call.peers.has(username)) return;
+            audio.srcObject = event.streams[0] || new MediaStream([event.track]);
+            audio.play().catch(() => {
+                callAlert.textContent = 'TERMINAL: Click the page to allow server-call audio playback.';
+            });
+        };
+        connection.onicecandidate = event => {
+            if (!event.candidate || serverCall !== call) return;
+            const candidate = serializeCandidate(event.candidate);
+            if (!peer.signalReady) {
+                peer.outgoingCandidates.push(candidate);
+                return;
+            }
+            publishServerVoiceSignal('candidate', call.callId, username, { candidate }).catch(error => {
+                callAlert.textContent = `TERMINAL: Could not send a server-call network candidate. ${error.message}`;
+            });
+        };
+        connection.onconnectionstatechange = () => {
+            if (serverCall !== call) return;
+            if (connection.connectionState === 'connected') {
+                clearTimeout(serverCallJoinTimer);
+                serverCallJoinTimer = 0;
+            }
+            if (connection.connectionState === 'failed' || connection.connectionState === 'closed') {
+                closeServerPeer(username);
+            } else {
+                syncCallView();
+            }
+        };
+        if (offerer) {
+            const offer = await connection.createOffer();
+            await connection.setLocalDescription(offer);
+            await publishServerVoiceSignal('offer', call.callId, username, {
+                offer: serializeDescription(connection.localDescription)
+            });
+            peer.signalReady = true;
+            await flushServerPeerCandidates(username, peer);
+        }
+        syncServerCallParticipants();
+    }
+
+    async function flushServerPeerCandidates(username, peer) {
+        const call = serverCall;
+        if (!call) return;
+        const candidates = peer.outgoingCandidates.splice(0);
+        for (const candidate of candidates) {
+            await publishServerVoiceSignal('candidate', call.callId, username, { candidate });
+        }
+    }
+
+    async function acceptServerOffer(packet, payload) {
+        const username = app.state.currentUser?.username;
+        const call = serverCall;
+        if (!call || !username || !validCallDescription(payload?.offer, 'offer')) return;
+        await createServerCallPeer(packet.sender, false);
+        const peer = call.peers.get(packet.sender);
+        if (!peer || serverCall !== call) return;
+        await peer.connection.setRemoteDescription(new RTCSessionDescription(payload.offer));
+        if (serverCall !== call) return;
+        const answer = await peer.connection.createAnswer();
+        await peer.connection.setLocalDescription(answer);
+        await publishServerVoiceSignal('answer', packet.callId, packet.sender, {
+            answer: serializeDescription(peer.connection.localDescription)
+        });
+        peer.signalReady = true;
+        await flushServerPeerCandidates(packet.sender, peer);
+        const candidates = call.pendingCandidates.get(packet.sender) || [];
+        call.pendingCandidates.delete(packet.sender);
+        for (const candidate of candidates) {
+            await peer.connection.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+    }
+
+    async function acceptPendingServerOffers() {
+        if (!serverCall) return;
+        for (const [peerName, pending] of serverCall.pendingOffers) {
+            if (!serverCall.members.has(peerName)) continue;
+            serverCall.pendingOffers.delete(peerName);
+            await acceptServerOffer(pending.packet, pending.payload);
+        }
+    }
+
+    async function handleServerVoiceSignal(packet, server) {
+        const username = app.state.currentUser?.username;
+        const call = serverCall;
+        const allowedTypes = new Set([
+            'join', 'member-joined', 'member-list', 'offer', 'answer', 'candidate', 'leave', 'end'
+        ]);
+        if (!username || !call || call.serverId !== server.id ||
+            packet.callId !== call.callId ||
+            (packet.recipient !== username && packet.recipient !== '*') ||
+            !allowedTypes.has(packet.type) ||
+            !await verifyServerVoiceEnvelope(packet, server)) return;
+        if (serverCall !== call) return;
+        let payload;
+        try {
+            payload = await decryptCallSignal(packet.ciphertext, packet, activeServerKey);
+        } catch (error) {
+            return;
+        }
+        if (serverCall !== call) return;
+        if (packet.type === 'join' && packet.recipient === call.host && call.host === username) {
+            call.members.add(packet.sender);
+            await createServerCallPeer(packet.sender, true);
+            if (serverCall !== call) return;
+            await publishServerVoiceSignal('member-list', call.callId, packet.sender, {
+                usernames: [...call.members].filter(member => member !== packet.sender)
+            });
+            if (serverCall !== call) return;
+            await publishServerVoiceSignal('member-joined', call.callId, '*', {
+                username: packet.sender
+            });
+        } else if (packet.type === 'member-joined' && packet.sender === call.host &&
+            typeof payload?.username === 'string' &&
+            /^[a-zA-Z0-9_.-]{3,32}$/.test(payload.username)) {
+            call.members.add(payload.username);
+            if (payload.username !== username) await createServerCallPeer(payload.username, true);
+            if (serverCall !== call) return;
+            await acceptPendingServerOffers();
+            syncServerCallParticipants();
+        } else if (packet.type === 'member-list' && packet.sender === call.host &&
+            Array.isArray(payload?.usernames) &&
+            payload.usernames.every(member => typeof member === 'string' &&
+                /^[a-zA-Z0-9_.-]{3,32}$/.test(member))) {
+            payload.usernames.forEach(member => call.members.add(member));
+            await acceptPendingServerOffers();
+            syncServerCallParticipants();
+        } else if (packet.type === 'offer' && packet.sender !== username &&
+            validCallDescription(payload?.offer, 'offer')) {
+            if (call.members.has(packet.sender)) {
+                await acceptServerOffer(packet, payload);
+            } else if (call.pendingOffers.size < 16) {
+                call.pendingOffers.set(packet.sender, { packet, payload });
+            }
+        } else if (packet.type === 'answer' && call.members.has(packet.sender) &&
+            validCallDescription(payload?.answer, 'answer')) {
+            const peer = call.peers.get(packet.sender);
+            if (!peer) return;
+            await peer.connection.setRemoteDescription(new RTCSessionDescription(payload.answer));
+            if (serverCall !== call) return;
+            peer.signalReady = true;
+            await flushServerPeerCandidates(packet.sender, peer);
+            const candidates = call.pendingCandidates.get(packet.sender) || [];
+            call.pendingCandidates.delete(packet.sender);
+            for (const candidate of candidates) {
+                await peer.connection.addIceCandidate(new RTCIceCandidate(candidate));
+            }
+        } else if (packet.type === 'candidate' && call.members.has(packet.sender) &&
+            validIceCandidate(payload?.candidate)) {
+            const peer = call.peers.get(packet.sender);
+            if (peer?.connection.remoteDescription) {
+                await peer.connection.addIceCandidate(new RTCIceCandidate(payload.candidate));
+            } else {
+                const candidates = call.pendingCandidates.get(packet.sender) || [];
+                if (candidates.length < 128) candidates.push(payload.candidate);
+                call.pendingCandidates.set(packet.sender, candidates);
+            }
+        } else if (packet.type === 'leave') {
+            call.members.delete(packet.sender);
+            call.pendingOffers.delete(packet.sender);
+            closeServerPeer(packet.sender);
+            syncServerCallParticipants();
+        } else if (packet.type === 'end' && packet.sender === call.host) {
+            closeServerCallLocally();
+        }
+    }
+
+    async function startOrJoinServerCall() {
+        const server = activeServer;
+        const username = app.state.currentUser?.username;
+        if (!server || !username || !activeServerKey) return;
+        if (activeCall) {
+            callAlert.textContent = 'TERMINAL: End your direct-message call before joining a server call.';
+            return;
+        }
+        if (serverCall?.serverId === server.id) {
+            await leaveServerCall(true);
+            return;
+        }
+        const state = activeServerVoiceState;
+        const isHost = !state || Date.now() - state.updatedAt > 75000;
+        const callId = isHost ? `call-${Date.now()}-${window.crypto.randomUUID()}` : state.callId;
+        serverCall = {
+            serverId: server.id,
+            callId,
+            host: isHost ? username : state.host,
+            stream: null,
+            members: new Set([username, ...(isHost ? [] : [state.host])]),
+            peers: new Map(),
+            pendingCandidates: new Map(),
+            pendingOffers: new Map()
+        };
+        const call = serverCall;
+        syncCallView();
+        try {
+            if (!navigator.mediaDevices?.getUserMedia) throw new Error('Microphone unavailable');
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            if (serverCall !== call || activeServer?.id !== server.id) {
+                stream.getTracks().forEach(track => track.stop());
+                return;
+            }
+            if (!isHost && activeServerVoiceState?.callId !== callId) {
+                stream.getTracks().forEach(track => track.stop());
+                closeServerCallLocally();
+                return;
+            }
+            call.stream = stream;
+            localStream = stream;
+            monitorVoice(localStream, localCallPfp, () => isMuted);
+            muteButton.disabled = false;
+            if (isHost) {
+                await writeServerVoiceState(callId, username);
+                if (serverCall !== call || activeServer?.id !== server.id) return;
+                activeServerVoiceState = { serverId: server.id, callId, host: username, updatedAt: Date.now() };
+                clearInterval(serverCallHeartbeat);
+                serverCallHeartbeat = setInterval(() => {
+                    writeServerVoiceState(callId, username).catch(error => {
+                        callAlert.textContent = `TERMINAL: Server call status could not be refreshed. ${error.message}`;
+                        closeServerCallLocally();
+                    });
+                }, 25000);
+            } else {
+                await publishServerVoiceSignal('join', callId, state.host);
+                serverCallJoinTimer = setTimeout(() => {
+                    if (serverCall !== call) return;
+                    callAlert.textContent = 'TERMINAL: No one in the server call responded. Try joining again.';
+                    leaveServerCall(true);
+                }, 45000);
+            }
+            if (serverCall !== call) return;
+            syncCallView();
+        } catch (error) {
+            callAlert.textContent = `TERMINAL: Could not join the server call. ${error.message}`;
+            closeServerCallLocally();
+        }
+    }
+
+    async function leaveServerCall(notify) {
+        const call = serverCall;
+        if (!call) return;
+        const username = app.state.currentUser?.username;
+        if (notify && activeServer?.id === call.serverId && activeServerKey) {
+            if (call.host === username) {
+                publishServerVoiceSignal('end', call.callId, '*').catch(() => {});
+                app.gun.get(call.serverId).get('voice').get('state').put(null);
+                activeServerVoiceState = null;
+            } else {
+                for (const peerName of call.members) {
+                    if (peerName === username) continue;
+                    publishServerVoiceSignal('leave', call.callId, peerName).catch(() => {});
+                }
+            }
+        }
+        closeServerCallLocally();
     }
 
     function renderServerList() {
@@ -903,6 +1564,29 @@ document.addEventListener('DOMContentLoaded', () => {
             const key = await deriveConversationKey(server.code, server.id);
             if (generation !== activeServerGeneration || activeServer?.id !== server.id) return;
             activeServerKey = key;
+            const voiceNode = gun.get(server.id).get('voice');
+            activeServerVoiceObserver = voiceNode.get('state');
+            activeServerVoiceObserver.on(envelope => {
+                if (generation !== activeServerGeneration || activeServer?.id !== server.id) return;
+                acceptServerVoiceState(envelope, server).catch(error => {
+                    console.warn('Could not verify server voice-channel state:', error);
+                });
+            });
+            activeServerVoiceSignalObserver = voiceNode.get('signals').map();
+            activeServerVoiceSignalObserver.on((packet, signalId) => {
+                if (generation !== activeServerGeneration || activeServer?.id !== server.id ||
+                    !packet || packet.id !== signalId || !serverCall ||
+                    packet.callId !== serverCall.callId ||
+                    seenServerVoiceSignalIds.has(signalId)) return;
+                seenServerVoiceSignalIds.add(signalId);
+                if (seenServerVoiceSignalIds.size > 2048) {
+                    seenServerVoiceSignalIds.delete(seenServerVoiceSignalIds.values().next().value);
+                }
+                handleServerVoiceSignal(packet, server).catch(error => {
+                    callAlert.textContent = `TERMINAL: Could not process a server-call signal. ${error.message}`;
+                });
+            });
+            const messageNotificationCutoff = Date.now() - 5000;
             const observer = gun.get(server.id).get('messages').map();
             activeServerObserver = observer;
             const seenMessages = new Set();
@@ -930,12 +1614,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         messages.splice(0, messages.length - MAX_RENDERED_SERVER_MESSAGES);
                     }
                     app.renderMessages();
+                    if (packet.sender !== app.state.currentUser?.username &&
+                        packet.timestamp >= messageNotificationCutoff) {
+                        playMessageSound(messageReceivedAudio, 'message received', audioPreferences.receivedMessageSound);
+                    }
                 } catch (error) {
                     setMediaStatus('A server message could not be decrypted. Confirm the invite code is correct.');
                 }
             });
             app.serverMessagesReady = true;
             app.renderChatArea();
+            syncCallView();
             document.getElementById('serverStatus').textContent = `Connected to ${server.name}.`;
         } catch (error) {
             if (generation !== activeServerGeneration) return;
@@ -984,29 +1673,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 setMediaStatus('Encrypted server message queued on this device; it will send when online.');
                 return;
             }
-            await new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => reject(new Error('The Gun relay did not confirm the server message.')), 15000);
-                gun.get(server.id).get('messages').set(packet, acknowledgement => {
-                    clearTimeout(timeout);
-                    if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
-                    else resolve();
+            try {
+                await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => reject(new Error('The Gun relay did not confirm the server message.')), 15000);
+                    gun.get(server.id).get('messages').set(packet, acknowledgement => {
+                        clearTimeout(timeout);
+                        if (acknowledgement?.err) reject(new Error(`Gun relay error: ${String(acknowledgement.err)}`));
+                        else resolve();
+                    });
                 });
-            });
-            if (activeServer?.id === server.id) setMediaStatus('');
-            document.getElementById('messageInput').value = '';
-        } catch (error) {
-            if (error.message.includes('did not confirm') || error.message.includes('could not be saved')) {
+            } catch (error) {
                 try {
                     queueEncryptedMessage(server.id, packet);
                     document.getElementById('messageInput').value = '';
-                    setMediaStatus('Gun did not confirm the server message. It is queued on this device for retry.');
+                    setMediaStatus(`The server relay did not accept the message (${error.message}). It is saved on this device; reconnect or reload to retry.`);
                     return;
                 } catch (queueError) {
-                    setMediaStatus(`Could not queue server message: ${queueError.message}`);
+                    setMediaStatus(`The server relay did not accept the message (${error.message}); it could not be queued: ${queueError.message}`);
                     return;
                 }
             }
-            setMediaStatus(`Could not send server message: ${error.message}`);
+            if (activeServer?.id === server.id) setMediaStatus('');
+            document.getElementById('messageInput').value = '';
+            playMessageSound(messageSentAudio, 'message sent', audioPreferences.sentMessageSound);
+        } catch (error) {
+            setMediaStatus(`Could not prepare the server message: ${error.message}`);
         }
     }
 
@@ -1182,13 +1873,19 @@ document.addEventListener('DOMContentLoaded', () => {
         profilePictureSelectionGeneration += 1;
         const isEmbeddedPicture = /^data:image\/(webp|jpeg|png);base64,/.test(profile.profilePictureUrl);
         settingsPfpUrl.value = isEmbeddedPicture ? '' : profile.profilePictureUrl || '';
+        document.getElementById('settings-bio').value = profile.bio;
         pendingProfilePictureDataUrl = isEmbeddedPicture ? profile.profilePictureUrl : '';
         profilePictureProcessing = false;
         document.getElementById('profilePictureDropzoneText').textContent =
             isEmbeddedPicture ? 'Current picture will be kept (drop a replacement here)' :
                 'Drop a picture here or browse (WebP/JPEG/PNG, max 160 KB)';
         settingsTheme.value = profile.theme || 'terminal';
+        syncAudioPreferenceControls();
         settingsStatus.textContent = '';
+        passwordChangeStatus.textContent = '';
+        document.getElementById('currentPassword').value = '';
+        document.getElementById('newPassword').value = '';
+        document.getElementById('confirmNewPassword').value = '';
         applyTheme(settingsTheme.value);
         settingsModal.classList.remove('hidden');
         settingsPfpUrl.focus();
@@ -1196,6 +1893,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function closeSettings() {
         syncUserPreferences();
+        document.getElementById('currentPassword').value = '';
+        document.getElementById('newPassword').value = '';
+        document.getElementById('confirmNewPassword').value = '';
         settingsModal.classList.add('hidden');
         settingsButton.focus();
     }
@@ -1224,7 +1924,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const theme = applyTheme(settingsTheme.value);
-            await app.updateProfile({ profilePictureUrl, theme });
+            const bio = document.getElementById('settings-bio').value.trim();
+            if (bio.length > 500) {
+                settingsStatus.textContent = 'Bios must be 500 characters or fewer.';
+                return;
+            }
+            saveAudioPreferences();
+            await app.updateProfile({ bio, profilePictureUrl, theme });
             syncUserPreferences();
             settingsStatus.textContent = 'Settings saved.';
         } catch (error) {
@@ -1232,9 +1938,71 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function changeAccountPassword() {
+        const currentPasswordInput = document.getElementById('currentPassword');
+        const newPasswordInput = document.getElementById('newPassword');
+        const confirmPasswordInput = document.getElementById('confirmNewPassword');
+        const changeButton = document.getElementById('changePasswordButton');
+        const currentPassword = currentPasswordInput.value;
+        const newPassword = newPasswordInput.value;
+        passwordChangeStatus.textContent = '';
+
+        if (!app.state.currentUser || !app.gunUser) {
+            passwordChangeStatus.textContent = 'Sign in before changing your password.';
+            return;
+        }
+        if (!currentPassword) {
+            passwordChangeStatus.textContent = 'Enter your current password.';
+            currentPasswordInput.focus();
+            return;
+        }
+        if (newPassword.length < 12) {
+            passwordChangeStatus.textContent = 'Your new password must be at least 12 characters.';
+            newPasswordInput.focus();
+            return;
+        }
+        if (newPassword !== confirmPasswordInput.value) {
+            passwordChangeStatus.textContent = 'The new passwords do not match.';
+            confirmPasswordInput.focus();
+            return;
+        }
+        if (newPassword === currentPassword) {
+            passwordChangeStatus.textContent = 'Choose a new password that differs from your current password.';
+            newPasswordInput.focus();
+            return;
+        }
+
+        changeButton.disabled = true;
+        passwordChangeStatus.textContent = 'Verifying your current password and updating your account...';
+        try {
+            await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => reject(new Error('Password change timed out. Check your connection and try again.')), 20000);
+                app.gunUser.auth(
+                    app.state.currentUser.username,
+                    currentPassword,
+                    acknowledgement => {
+                        clearTimeout(timeout);
+                        if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
+                        else resolve(acknowledgement);
+                    },
+                    { change: newPassword }
+                );
+            });
+            currentPasswordInput.value = '';
+            newPasswordInput.value = '';
+            confirmPasswordInput.value = '';
+            passwordChangeStatus.textContent = 'Password changed. Keep your new password safe; there is no email-based recovery.';
+        } catch (error) {
+            passwordChangeStatus.textContent = `Could not change password: ${error.message}`;
+        } finally {
+            changeButton.disabled = false;
+        }
+    }
+
     settingsButton.addEventListener('click', openSettings);
     document.getElementById('settings-close').addEventListener('click', closeSettings);
     document.getElementById('settings-save').addEventListener('click', saveSettings);
+    document.getElementById('changePasswordButton').addEventListener('click', changeAccountPassword);
     const profilePictureFile = document.getElementById('settings-pfp-file');
     const profilePictureDropzone = document.getElementById('profilePictureDropzone');
     async function setPendingProfilePicture(file) {
@@ -1277,6 +2045,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (file) setPendingProfilePicture(file);
     });
     settingsTheme.addEventListener('change', () => applyTheme(settingsTheme.value));
+    document.getElementById('settings-ringtone-volume').addEventListener('input', event => {
+        document.getElementById('settings-ringtone-volume-value').textContent = `${event.currentTarget.value}%`;
+    });
     settingsModal.addEventListener('click', event => {
         if (event.target === settingsModal) closeSettings();
     });
@@ -1301,8 +2072,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         emojiPicker.appendChild(button);
     });
-    document.getElementById('emojiPickerButton').addEventListener('click', () => {
-        emojiPicker.classList.toggle('hidden');
+    const emojiPickerButton = document.getElementById('emojiPickerButton');
+    emojiPickerButton.addEventListener('click', () => {
+        const isOpen = emojiPicker.classList.toggle('hidden') === false;
+        emojiPickerButton.setAttribute('aria-expanded', String(isOpen));
+    });
+    document.addEventListener('click', event => {
+        if (emojiPicker.classList.contains('hidden') ||
+            emojiPicker.contains(event.target) ||
+            emojiPickerButton.contains(event.target)) return;
+        emojiPicker.classList.add('hidden');
+        emojiPickerButton.setAttribute('aria-expanded', 'false');
+    });
+    document.addEventListener('keydown', event => {
+        if (event.key !== 'Escape' || emojiPicker.classList.contains('hidden')) return;
+        emojiPicker.classList.add('hidden');
+        emojiPickerButton.setAttribute('aria-expanded', 'false');
+        emojiPickerButton.focus();
     });
     document.getElementById('attachButton').addEventListener('click', () => {
         document.getElementById('attachmentInput').click();
@@ -1513,30 +2299,120 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function readVerifiedBadges(username, publicKey) {
+    function findOwnerAward(kind, id) {
+        if (kind === 'badge') {
+            return OWNER_BADGE_CATALOG.find(award => award.id === id) ||
+                SPECIAL_OWNER_BADGES.find(award => award.id === id);
+        }
+        if (kind === 'title') return OWNER_TITLE_CATALOG.find(award => award.id === id);
+        return null;
+    }
+
+    async function readVerifiedOwnerAwards(username, publicKey, refresh = false) {
+        const cached = ownerAwardCache.get(publicKey);
+        if (!refresh && cached && cached.expiresAt > Date.now()) return cached.awards;
         const ownerPub = await app.lookupUserPub(OWNER_USERNAME);
         if (!ownerPub) return [];
         const records = await app.readGunNode(
             gun.get('blocktalk-v1').get('badges').get(publicKey)
         );
         const sea = app.getGunSea();
-        const verifiedBadges = new Set();
+        const verifiedAwards = new Map();
         for (const envelope of Object.values(records || {})) {
             if (!envelope || typeof envelope !== 'object' || typeof envelope.signature !== 'string') continue;
             try {
                 const signedPayload = await sea.verify(envelope.signature, ownerPub);
                 if (typeof signedPayload !== 'string') continue;
                 const payload = JSON.parse(signedPayload);
+                const kind = payload.kind || 'badge';
+                const awardId = payload.awardId || payload.badge;
                 if (payload.recipientPub !== publicKey || payload.issuerPub !== ownerPub ||
                     payload.recipient !== username ||
-                    !['met-owner', 'owner-friend'].includes(payload.badge) ||
-                    typeof payload.id !== 'string' || !Number.isFinite(payload.timestamp)) continue;
-                verifiedBadges.add(payload.badge);
+                    typeof payload.id !== 'string' ||
+                    !Number.isFinite(payload.timestamp) ||
+                    !findOwnerAward(kind, awardId)) continue;
+                const key = `${kind}:${awardId}`;
+                const existing = verifiedAwards.get(key);
+                if (!existing || payload.timestamp > existing.timestamp) {
+                    verifiedAwards.set(key, { kind, id: awardId, timestamp: payload.timestamp });
+                }
             } catch (error) {
-                console.warn(`Ignoring an invalid owner badge for ${username}:`, error);
+                console.warn(`Ignoring an invalid owner award for ${username}:`, error);
             }
         }
-        return [...verifiedBadges];
+        const awards = [...verifiedAwards.values()];
+        ownerAwardCache.set(publicKey, { awards, expiresAt: Date.now() + 60000 });
+        return awards;
+    }
+
+    async function readCurrentChatTitle(username) {
+        const publicKey = await app.lookupUserPub(username);
+        if (!publicKey) return '';
+        const awards = await readVerifiedOwnerAwards(username, publicKey);
+        const title = awards
+            .filter(award => award.kind === 'title')
+            .sort((left, right) => right.timestamp - left.timestamp)[0];
+        return title ? findOwnerAward('title', title.id).name : '';
+    }
+
+    function renderAwardedTitles() {
+        const generation = ++chatTitleRenderGeneration;
+        const senders = [...document.querySelectorAll('#messageLog .message-sender[data-profile-username]')];
+        senders.forEach(sender => {
+            const username = sender.dataset.profileUsername;
+            const cachedTitle = renderedTitleCache.get(username);
+            if (cachedTitle && cachedTitle.expiresAt <= Date.now()) renderedTitleCache.delete(username);
+            const title = cachedTitle?.expiresAt > Date.now() ? cachedTitle.title : '';
+            const previous = sender.nextElementSibling;
+            if (previous?.classList.contains('chat-title-tag')) previous.remove();
+            if (title) {
+                const titleElement = document.createElement('span');
+                titleElement.className = 'chat-title-tag';
+                titleElement.textContent = title;
+                sender.after(titleElement);
+            }
+        });
+        const sendersByUsername = new Map();
+        senders.forEach(sender => {
+            const username = sender.dataset.profileUsername;
+            if (renderedTitleCache.get(username)?.expiresAt > Date.now()) return;
+            if (!sendersByUsername.has(username)) sendersByUsername.set(username, []);
+            sendersByUsername.get(username).push(sender);
+        });
+        const pending = [...sendersByUsername.entries()];
+        const loadBatch = async start => {
+            if (generation !== chatTitleRenderGeneration || start >= pending.length) return;
+            const batch = pending.slice(start, start + 5);
+            await Promise.all(batch.map(async ([username]) => {
+                try {
+                    const title = await readCurrentChatTitle(username);
+                    renderedTitleCache.set(username, {
+                        title,
+                        expiresAt: Date.now() + RENDERED_TITLE_CACHE_TTL
+                    });
+                } catch (error) {
+                    console.warn(`Could not load @${username}'s chat title:`, error);
+                    renderedTitleCache.set(username, {
+                        title: '',
+                        expiresAt: Date.now() + RENDERED_TITLE_CACHE_TTL
+                    });
+                }
+            }));
+            if (generation !== chatTitleRenderGeneration) return;
+            batch.forEach(([username, usernameSenders]) => {
+                const title = renderedTitleCache.get(username)?.title;
+                if (!title) return;
+                usernameSenders.forEach(sender => {
+                    if (!sender.isConnected) return;
+                    const titleElement = document.createElement('span');
+                    titleElement.className = 'chat-title-tag';
+                    titleElement.textContent = title;
+                    sender.after(titleElement);
+                });
+            });
+            window.setTimeout(() => loadBatch(start + 5), 0);
+        };
+        loadBatch(0);
     }
 
     function appendBadge(container, label, styleName) {
@@ -1551,12 +2427,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const modal = document.getElementById('profileModal');
         const title = document.getElementById('profileModalTitle');
         const badges = document.getElementById('profileModalBadges');
+        const bio = document.getElementById('profileModalBio');
         const status = document.getElementById('profileModalStatus');
         const ownerTools = document.getElementById('ownerBadgeTools');
         const generation = ++profileModalGeneration;
         badgeTarget = null;
         title.textContent = `@${username}`;
+        const profileChatTitle = document.getElementById('profileModalChatTitle');
+        profileChatTitle.textContent = '';
+        profileChatTitle.classList.add('hidden');
         badges.replaceChildren();
+        bio.textContent = '';
         status.textContent = 'Loading public profile…';
         ownerTools.classList.toggle('hidden', app.state.currentUser?.username !== OWNER_USERNAME);
         document.getElementById('badgeTargetStatus').textContent = '';
@@ -1570,6 +2451,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const profile = await app.readProfileByPub(publicKey);
             if (generation !== profileModalGeneration) return;
             setProfileModalAvatar(document.getElementById('profileModalPicture'), username, profile.profilePictureUrl);
+            bio.textContent = profile.bio || 'No bio added yet.';
             if (profile.accountCreatedAt > 0 && profile.accountCreatedAt < FOUNDER_BADGE_CUTOFF) {
                 appendBadge(badges, 'Early OG · Joined before 2027', 'founder-badge');
             }
@@ -1577,13 +2459,24 @@ document.addEventListener('DOMContentLoaded', () => {
             let claims = [];
             let badgeError = '';
             try {
-                claims = await readVerifiedBadges(username, publicKey);
+                claims = await readVerifiedOwnerAwards(username, publicKey);
             } catch (error) {
                 badgeError = `Owner-issued badges could not be verified: ${error.message}`;
             }
             if (generation !== profileModalGeneration) return;
-            if (claims.includes('met-owner')) appendBadge(badges, 'Met the Owner', 'met-owner-badge');
-            if (claims.includes('owner-friend')) appendBadge(badges, "Owner's Friend", 'friend-badge');
+            const badgeClaims = claims.filter(claim => claim.kind === 'badge');
+            badgeClaims.forEach(claim => {
+                const award = findOwnerAward('badge', claim.id);
+                if (award) appendBadge(badges, award.name, award.style || 'collectable-badge');
+            });
+            const activeTitle = claims
+                .filter(claim => claim.kind === 'title')
+                .sort((left, right) => right.timestamp - left.timestamp)[0];
+            const profileTitle = document.getElementById('profileModalChatTitle');
+            profileTitle.textContent = activeTitle
+                ? findOwnerAward('title', activeTitle.id).name
+                : '';
+            profileTitle.classList.toggle('hidden', !activeTitle);
             if (!badges.childElementCount) {
                 const noBadges = document.createElement('span');
                 noBadges.className = 'profile-no-badges';
@@ -1632,7 +2525,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!publicKey) throw new Error('That username has not signed up for BlockTalk.');
             if (input.value.trim() !== username) return;
             badgeTarget = { username, publicKey };
-            status.textContent = `Found @${username}. Choose a badge and award it.`;
+            status.textContent = `Found @${username}. Choose a badge or title to award.`;
             button.disabled = false;
         } catch (error) {
             if (input.value.trim() !== username) return;
@@ -1649,6 +2542,41 @@ document.addEventListener('DOMContentLoaded', () => {
         event.preventDefault();
         document.getElementById('findBadgeTarget').click();
     });
+    function populateOwnerAwards() {
+        const kind = document.getElementById('ownerAwardType').value;
+        const catalog = kind === 'title'
+            ? OWNER_TITLE_CATALOG
+            : [
+                ...OWNER_BADGE_CATALOG,
+                ...SPECIAL_OWNER_BADGES.map(award => ({
+                    ...award,
+                    category: 'Special Awards'
+                }))
+            ];
+        const selection = document.getElementById('ownerAwardSelection');
+        selection.replaceChildren();
+        const grouped = new Map();
+        catalog.forEach(award => {
+            if (!grouped.has(award.category)) grouped.set(award.category, []);
+            grouped.get(award.category).push(award);
+        });
+        grouped.forEach((awards, category) => {
+            const group = document.createElement('optgroup');
+            group.label = category;
+            awards.forEach(award => {
+                const option = document.createElement('option');
+                option.value = award.id;
+                option.textContent = award.name;
+                group.appendChild(option);
+            });
+            selection.appendChild(group);
+        });
+    }
+    populateOwnerAwards();
+    document.getElementById('ownerAwardType').addEventListener('change', populateOwnerAwards);
+    document.addEventListener('pointerdown', () => {
+        if (incomingCalls.size > 0) startCallRingtone();
+    });
     document.getElementById('awardBadgeButton').addEventListener('click', async () => {
         const status = document.getElementById('badgeTargetStatus');
         const button = document.getElementById('awardBadgeButton');
@@ -1661,21 +2589,30 @@ document.addEventListener('DOMContentLoaded', () => {
             const pair = app.gunUser?._?.sea;
             const ownerPub = await app.lookupUserPub(OWNER_USERNAME);
             if (!pair?.pub || pair.pub !== ownerPub) throw new Error('The owner account key could not be verified.');
+            const kind = document.getElementById('ownerAwardType').value;
+            const awardId = document.getElementById('ownerAwardSelection').value;
+            const award = findOwnerAward(kind, awardId);
+            if (!award) throw new Error('Select a valid badge or title to award.');
             const payload = {
                 id: window.crypto.randomUUID(),
-                badge: document.getElementById('badgeType').value,
+                kind,
+                awardId,
                 recipientPub: badgeTarget.publicKey,
                 recipient: badgeTarget.username,
                 issuerPub: ownerPub,
                 timestamp: Date.now()
             };
+            if (kind === 'badge') payload.badge = awardId;
             const signature = await app.getGunSea().sign(JSON.stringify(payload), pair);
             if (typeof signature !== 'string') throw new Error('The badge award could not be signed.');
             await app.writeGunNode(
                 gun.get('blocktalk-v1').get('badges').get(badgeTarget.publicKey).get(payload.id),
                 { signature }
             );
-            status.textContent = `Awarded the ${payload.badge === 'met-owner' ? 'Met the Owner' : "Owner's Friend"} badge to @${badgeTarget.username}.`;
+            ownerAwardCache.delete(badgeTarget.publicKey);
+            renderedTitleCache.delete(badgeTarget.username);
+            status.textContent = `Awarded ${kind === 'title' ? 'the title' : 'the badge'} "${award.name}" to @${badgeTarget.username}.`;
+            app.renderMessages();
             if (document.getElementById('profileModalTitle').textContent === `@${badgeTarget.username}`) {
                 await openProfile(badgeTarget.username);
             }
@@ -1685,6 +2622,13 @@ document.addEventListener('DOMContentLoaded', () => {
             button.disabled = !badgeTarget;
         }
     });
+
+    const originalRenderMessages = app.renderMessages;
+    app.renderMessages = function(...args) {
+        const result = originalRenderMessages.apply(this, args);
+        renderAwardedTitles();
+        return result;
+    };
 
     function serializeDescription(description) {
         if (typeof description.toJSON === 'function') return description.toJSON();
@@ -1862,14 +2806,35 @@ document.addEventListener('DOMContentLoaded', () => {
     function syncCallView() {
         const username = app.state.currentUser?.username;
         if (!username) {
-            incomingCalls.clear();
+            clearIncomingCalls();
+            stopCallRingtone();
             incomingCallList.replaceChildren();
             callPanel.classList.add('hidden');
             document.getElementById('mainChatContainer').classList.remove('has-active-call');
             return;
         }
         showIncomingCall();
-        if (activeCall) {
+        if (activeCall?.status === 'ringing' || (!activeCall && incomingCalls.size > 0)) {
+            startCallRingtone();
+        } else {
+            stopCallRingtone();
+        }
+        if (serverCall) {
+            callPanel.classList.remove('hidden');
+            document.getElementById('mainChatContainer').classList.add('has-active-call');
+            callTitle.textContent = `Server voice · ${activeServer?.name || 'Private server'}`;
+            callStatus.textContent = serverCall.host === username
+                ? `You started the call · ${serverCall.peers.size + 1} joined`
+                : `In the call hosted by @${serverCall.host} · ${serverCall.peers.size + 1} joined`;
+            document.querySelector('.voice-participants').classList.add('hidden');
+            document.getElementById('serverCallParticipants').classList.remove('hidden');
+            localCallName.textContent = `${username} (you)`;
+            setCallAvatar(localCallPfp, localCallInitials, username,
+                app.getUserProfile(app.readDatabase(), username).profilePictureUrl);
+            document.getElementById('call-live-indicator').classList.remove('is-ringing');
+        } else if (activeCall) {
+            document.querySelector('.voice-participants').classList.remove('hidden');
+            document.getElementById('serverCallParticipants').classList.add('hidden');
             const database = app.readDatabase();
             const localProfile = app.getUserProfile(database, username);
             const peerProfile = app.getUserProfile(database, activeCall.peer);
@@ -1890,26 +2855,41 @@ document.addEventListener('DOMContentLoaded', () => {
             callPanel.classList.add('hidden');
             document.getElementById('mainChatContainer').classList.remove('has-active-call');
             callStatus.classList.remove('is-ringing');
+            document.querySelector('.voice-participants').classList.remove('hidden');
+            document.getElementById('serverCallParticipants').classList.add('hidden');
         }
         const database = app.readDatabase();
         const profile = app.getUserProfile(database, username);
         const selected = app.state.currentConversation;
+        const inServer = Boolean(activeServer && app.state.currentServer?.id === activeServer.id);
+        const canCallServer = inServer && app.serverMessagesReady && !activeCall;
         const canCall = selected && profile.friends.some(friend => friend.username === selected) &&
             !isBlocked(database, username, selected) &&
+            !serverCall &&
             (!activeCall || (activeCall.peer === selected && activeCall.role === 'caller' &&
                 activeCall.status === 'ringing')) &&
             app.directMessageReady && activeGunPeer === selected && Boolean(activeGunKey);
-        callButton.disabled = !canCall;
-        callButton.textContent = activeCall ? (activeCall.status === 'ringing' ? 'Cancel Call' : 'In Call') : 'Call';
+        callButton.disabled = inServer ? !canCallServer : !canCall;
+        if (inServer) {
+            const state = activeServerVoiceState;
+            const stateIsLive = state && Date.now() - state.updatedAt <= 75000;
+            callButton.textContent = serverCall ? 'Leave Server Call' : stateIsLive ? 'Join Server Call' : 'Start Server Call';
+        } else {
+            callButton.textContent = activeCall ? (activeCall.status === 'ringing' ? 'Cancel Call' : 'In Call') : 'Call';
+        }
         muteButton.disabled = !localStream;
-        cameraButton.disabled = !peerConnection;
-        shareButton.disabled = !peerConnection;
+        cameraButton.disabled = serverCall ? true : !peerConnection;
+        shareButton.disabled = serverCall ? true : !peerConnection;
     }
 
     async function startCall() {
         const caller = app.state.currentUser?.username;
         const recipient = app.state.currentConversation;
         if (!caller || !recipient) return;
+        if (serverCall) {
+            callAlert.textContent = 'TERMINAL: Leave the server call before starting a direct-message call.';
+            return;
+        }
         if (!app.directMessageReady || activeGunPeer !== recipient || !activeGunKey || !activeGunSignalingNode) {
             callAlert.textContent = 'TERMINAL: Unlock this friend’s encrypted chat before starting a call.';
             return;
@@ -1943,12 +2923,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 offer: serializeDescription(peerConnection.localDescription)
             });
             if (!activeCall || activeCall.callId !== callId) return;
-            activeCall.signalReady = true;
-            await flushIceCandidates();
             callTimer = setTimeout(() => {
                 callAlert.textContent = `TERMINAL: @${recipient} did not answer.`;
                 finishCall(true);
             }, 45000);
+            activeCall.signalReady = true;
+            await flushIceCandidates();
         } catch (error) {
             const message = error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError'
                 ? 'Microphone access was blocked. Allow permission to place a call.'
@@ -1962,7 +2942,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const invitation = incomingCalls.get(callId);
         const username = app.state.currentUser?.username;
         if (!invitation || !username || !activeGunKey ||
-            activeGunPeer !== invitation.caller || !activeGunSignalingNode || activeCall) return;
+            activeGunPeer !== invitation.caller || !activeGunSignalingNode || activeCall || serverCall) return;
         const database = app.readDatabase();
         const profile = app.getUserProfile(database, username);
         if (isBlocked(database, invitation.caller, username) ||
@@ -1971,7 +2951,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        incomingCalls.delete(callId);
+        removeIncomingCall(callId);
         activeCall = { callId, peer: invitation.caller, role: 'recipient', status: 'connecting', signalReady: false };
         pendingIceCandidates.length = 0;
         syncCallView();
@@ -2014,7 +2994,7 @@ document.addEventListener('DOMContentLoaded', () => {
         publishCallSignal('decline', callId).catch(error => {
             callAlert.textContent = `TERMINAL: Could not decline the call. ${error.message}`;
         });
-        incomingCalls.delete(callId);
+        removeIncomingCall(callId);
         syncCallView();
     }
 
@@ -2140,10 +3120,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     callButton.addEventListener('click', () => {
-        if (activeCall?.status === 'ringing') finishCall(true);
+        if (activeServer && app.state.currentServer?.id === activeServer.id) startOrJoinServerCall();
+        else if (activeCall?.status === 'ringing') finishCall(true);
         else startCall();
     });
-    document.getElementById('endCallButton').addEventListener('click', () => finishCall(true));
+    document.getElementById('endCallButton').addEventListener('click', () => {
+        if (serverCall) leaveServerCall(true);
+        else finishCall(true);
+    });
     muteButton.addEventListener('click', () => {
         if (!localStream) return;
         isMuted = !isMuted;
@@ -2174,7 +3158,8 @@ document.addEventListener('DOMContentLoaded', () => {
         recordingStream = null;
         app.directMessageCache = Object.create(null);
         app.directMessageReady = false;
-        incomingCalls.clear();
+        clearIncomingCalls();
+        stopCallRingtone();
         document.getElementById('profileModal').classList.add('hidden');
         const result = await originalLogout.apply(this, args);
         syncCallView();
