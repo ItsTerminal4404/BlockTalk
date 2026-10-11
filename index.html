@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BlockTalk</title>
+    <title>BlockTalk - Real-Time Chat Application</title>
     <style>
         * {
             margin: 0;
@@ -12,21 +12,157 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-            background-color: #36393f;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background-color: #1a1b1e;
             color: #ffffff;
             height: 100vh;
             overflow: hidden;
-            display: flex;
         }
 
-        .container {
+        /* ===== AUTHENTICATION GATEWAY STYLES ===== */
+        .auth-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #0f0f14 0%, #1a1b1e 50%, #141518 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 1;
+            visibility: visible;
+            transition: opacity 0.4s ease, visibility 0.4s ease;
+        }
+
+        .auth-container.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .auth-box {
+            background-color: #2f3136;
+            border: 1px solid #202225;
+            border-radius: 8px;
+            padding: 32px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+        }
+
+        .auth-header {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .auth-title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 8px;
+        }
+
+        .auth-subtitle {
+            font-size: 14px;
+            color: #b9bbbe;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #b9bbbe;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 14px;
+            background-color: #40444b;
+            border: 1px solid #202225;
+            border-radius: 4px;
+            color: #ffffff;
+            font-size: 14px;
+            outline: none;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+        .form-input:focus {
+            background-color: #484c52;
+            border-color: #5865f2;
+        }
+
+        .form-input::placeholder {
+            color: #72767d;
+        }
+
+        .form-error {
+            font-size: 12px;
+            color: #ed4245;
+            margin-top: 4px;
+            display: none;
+        }
+
+        .form-error.show {
+            display: block;
+        }
+
+        .auth-button {
+            width: 100%;
+            padding: 12px;
+            background-color: #5865f2;
+            color: #ffffff;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-bottom: 12px;
+        }
+
+        .auth-button:hover {
+            background-color: #4752c4;
+        }
+
+        .auth-toggle {
+            text-align: center;
+            font-size: 13px;
+            color: #b9bbbe;
+        }
+
+        .auth-toggle button {
+            background: none;
+            border: none;
+            color: #5865f2;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: underline;
+            padding: 0;
+        }
+
+        .auth-toggle button:hover {
+            color: #7289da;
+        }
+
+        /* ===== MAIN APPLICATION LAYOUT ===== */
+        .app-container {
             display: flex;
             width: 100%;
             height: 100%;
+            background-color: #1a1b1e;
         }
 
-        /* LEFT SIDEBAR */
+        /* ===== LEFT SIDEBAR ===== */
         .sidebar {
             width: 260px;
             background-color: #2f3136;
@@ -36,87 +172,128 @@
             overflow: hidden;
         }
 
-        .profile-status {
+        .user-profile-panel {
             padding: 16px;
             background-color: #2f3136;
             border-bottom: 1px solid #202225;
         }
 
-        .profile-status-content {
+        .user-info {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 12px;
         }
 
-        .status-label {
+        .user-label {
             font-size: 13px;
             font-weight: 600;
             color: #ffffff;
         }
 
-        .switch-button {
+        .logout-button {
             padding: 6px 12px;
             background-color: #ed4245;
             color: #ffffff;
             border: none;
             border-radius: 3px;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
             cursor: pointer;
             transition: background-color 0.2s;
         }
 
-        .switch-button:hover {
+        .logout-button:hover {
             background-color: #da373c;
         }
 
-        .status-descriptor {
+        .user-status {
             font-size: 12px;
             color: #b9bbbe;
         }
 
-        /* FRIEND LOOKUP */
-        .friend-lookup {
-            padding: 16px;
+        .nav-tabs {
+            display: flex;
+            border-bottom: 1px solid #202225;
+            background-color: #2f3136;
+            padding: 0 8px;
+        }
+
+        .nav-tab {
+            flex: 1;
+            padding: 12px 8px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: #72767d;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .nav-tab:hover {
+            color: #b9bbbe;
+        }
+
+        .nav-tab.active {
+            color: #ffffff;
+            border-bottom-color: #5865f2;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ===== FRIENDS PANEL ===== */
+        .friends-panel {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .friends-panel.active {
+            display: flex;
+        }
+
+        .friends-header {
+            padding: 12px 16px;
             border-bottom: 1px solid #202225;
         }
 
-        .lookup-title {
-            font-size: 12px;
+        .friends-section-title {
+            font-size: 11px;
             font-weight: 700;
             color: #72767d;
-            margin-bottom: 8px;
+            text-transform: uppercase;
             letter-spacing: 0.5px;
+            margin-bottom: 12px;
         }
 
-        .lookup-container {
+        .add-friend-container {
             display: flex;
             gap: 8px;
         }
 
-        .lookup-input {
+        .add-friend-input {
             flex: 1;
             padding: 8px 10px;
-            background-color: #202225;
+            background-color: #40444b;
             border: 1px solid #202225;
             border-radius: 4px;
             color: #ffffff;
-            font-size: 13px;
+            font-size: 12px;
             outline: none;
-            transition: background-color 0.2s;
         }
 
-        .lookup-input::placeholder {
-            color: #72767d;
+        .add-friend-input:focus {
+            background-color: #484c52;
+            border-color: #5865f2;
         }
 
-        .lookup-input:focus {
-            background-color: #2c2f33;
-            border-color: #202225;
-        }
-
-        .add-button {
+        .add-friend-button {
             padding: 8px 12px;
             background-color: #3ba55d;
             color: #ffffff;
@@ -128,42 +305,111 @@
             transition: background-color 0.2s;
         }
 
-        .add-button:hover {
+        .add-friend-button:hover {
             background-color: #2d8659;
         }
 
-        /* DIRECT MESSAGES ROSTER */
-        .dm-roster {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            border-bottom: 1px solid #202225;
-        }
-
-        .dm-title {
-            font-size: 12px;
-            font-weight: 700;
-            color: #72767d;
-            padding: 16px;
-            padding-bottom: 8px;
-            letter-spacing: 0.5px;
-        }
-
-        .dm-list {
+        .friends-list {
             flex: 1;
             overflow-y: auto;
-            padding: 0 8px;
+            padding: 8px;
         }
 
-        .dm-item {
-            padding: 8px 8px;
-            margin-bottom: 4px;
+        .friend-item {
+            padding: 10px 8px;
             border-radius: 4px;
             color: #b9bbbe;
             font-size: 13px;
             cursor: pointer;
             transition: background-color 0.15s, color 0.15s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .friend-item:hover {
+            background-color: #36393f;
+            color: #ffffff;
+        }
+
+        .friend-item.active {
+            background-color: #404249;
+            color: #ffffff;
+        }
+
+        .friend-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        .friend-action-btn {
+            padding: 4px 8px;
+            font-size: 11px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .friend-accept-btn {
+            background-color: #3ba55d;
+            color: #ffffff;
+        }
+
+        .friend-accept-btn:hover {
+            background-color: #2d8659;
+        }
+
+        .friend-decline-btn {
+            background-color: #ed4245;
+            color: #ffffff;
+        }
+
+        .friend-decline-btn:hover {
+            background-color: #da373c;
+        }
+
+        .friend-remove-btn {
+            background-color: #5865f2;
+            color: #ffffff;
+        }
+
+        .friend-remove-btn:hover {
+            background-color: #4752c4;
+        }
+
+        /* ===== DIRECT MESSAGES PANEL ===== */
+        .dm-panel {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .dm-panel.active {
+            display: flex;
+        }
+
+        .dm-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid #202225;
+        }
+
+        .dm-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .dm-item {
+            padding: 10px 8px;
+            border-radius: 4px;
+            color: #b9bbbe;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background-color 0.15s, color 0.15s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .dm-item:hover {
@@ -176,7 +422,40 @@
             color: #ffffff;
         }
 
-        /* MAIN CHAT CONTAINER */
+        .dm-item-info {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .dm-item-name {
+            font-weight: 500;
+        }
+
+        .dm-item-preview {
+            font-size: 11px;
+            color: #72767d;
+            margin-top: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .dm-unread-badge {
+            background-color: #5865f2;
+            color: #ffffff;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        /* ===== MAIN CHAT AREA ===== */
         .main-chat {
             flex: 1;
             display: flex;
@@ -185,43 +464,61 @@
             overflow: hidden;
         }
 
-        /* CONVERSATION HEADER */
         .chat-header {
             height: 56px;
             background-color: #2f3136;
             border-bottom: 1px solid #202225;
-            padding: 0 16px;
+            padding: 0 20px;
             display: flex;
             align-items: center;
             justify-content: space-between;
         }
 
-        .header-title {
-            font-size: 15px;
+        .chat-title {
+            font-size: 16px;
             font-weight: 600;
             color: #ffffff;
         }
 
-        .header-subtitle {
+        .chat-subtitle {
             font-size: 12px;
             color: #b9bbbe;
             margin-top: 2px;
         }
 
-        /* MESSAGE LOG CANVAS */
+        .chat-header-right {
+            display: flex;
+            gap: 12px;
+        }
+
+        .online-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: #3ba55d;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .online-indicator.offline {
+            background-color: #72767d;
+        }
+
+        /* ===== MESSAGE LOG ===== */
         .message-log {
             flex: 1;
             overflow-y: auto;
-            padding: 16px;
+            padding: 16px 20px;
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 8px;
         }
 
         .message-group {
             display: flex;
             flex-direction: column;
             gap: 2px;
+            margin-bottom: 12px;
         }
 
         .message-header {
@@ -230,7 +527,7 @@
             gap: 8px;
         }
 
-        .sender-name {
+        .message-sender {
             font-weight: 600;
             color: #5865f2;
             font-size: 14px;
@@ -241,180 +538,1035 @@
             color: #72767d;
         }
 
+        .message-body {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
         .message-content {
             color: #dcddde;
-            font-size: 13px;
+            font-size: 14px;
             line-height: 1.5;
-            margin-left: 0px;
+            word-wrap: break-word;
+            max-width: 600px;
+            background-color: #40444b;
+            padding: 8px 12px;
+            border-radius: 4px;
         }
 
-        .message-divider {
-            height: 1px;
-            background-color: #2f3136;
-            margin: 8px 0;
+        .message-status {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            color: #72767d;
         }
 
-        /* TEXT INPUT FRAME */
+        .message-status.read {
+            color: #5865f2;
+        }
+
+        .status-icon {
+            width: 12px;
+            height: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: #b9bbbe;
+            font-size: 13px;
+        }
+
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            background-color: #b9bbbe;
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% {
+                opacity: 0.5;
+                transform: translateY(0);
+            }
+            30% {
+                opacity: 1;
+                transform: translateY(-8px);
+            }
+        }
+
+        /* ===== MESSAGE INPUT ===== */
         .input-frame {
             height: 68px;
             background-color: #36393f;
-            padding: 16px;
+            padding: 16px 20px;
             border-top: 1px solid #202225;
         }
 
-        .input-container {
-            width: 100%;
-            height: 100%;
+        .input-wrapper {
             display: flex;
+            gap: 12px;
         }
 
         .message-input {
             flex: 1;
-            padding: 10px 12px;
+            padding: 12px 14px;
             background-color: #40444b;
-            border: none;
+            border: 1px solid #202225;
             border-radius: 6px;
             color: #ffffff;
             font-size: 14px;
             font-family: inherit;
             outline: none;
             resize: none;
-            transition: background-color 0.2s;
+            transition: background-color 0.2s, border-color 0.2s;
+            max-height: 100px;
+        }
+
+        .message-input:focus {
+            background-color: #484c52;
+            border-color: #5865f2;
         }
 
         .message-input::placeholder {
             color: #72767d;
         }
 
-        .message-input:focus {
-            background-color: #484c52;
+        .send-button {
+            padding: 12px 20px;
+            background-color: #5865f2;
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            white-space: nowrap;
         }
 
-        /* SCROLLBAR STYLING */
-        .dm-list::-webkit-scrollbar,
-        .message-log::-webkit-scrollbar {
+        .send-button:hover {
+            background-color: #4752c4;
+        }
+
+        .send-button:disabled {
+            background-color: #72767d;
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        /* ===== NO CHAT SELECTED ===== */
+        .no-chat-selected {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #b9bbbe;
+            background-color: #36393f;
+        }
+
+        .no-chat-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .no-chat-text {
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+
+        .no-chat-subtitle {
+            font-size: 13px;
+            color: #72767d;
+        }
+
+        /* ===== SCROLLBAR STYLING ===== */
+        ::-webkit-scrollbar {
             width: 8px;
         }
 
-        .dm-list::-webkit-scrollbar-track,
-        .message-log::-webkit-scrollbar-track {
+        ::-webkit-scrollbar-track {
             background: transparent;
         }
 
-        .dm-list::-webkit-scrollbar-thumb,
-        .message-log::-webkit-scrollbar-thumb {
+        ::-webkit-scrollbar-thumb {
             background-color: #2f3136;
             border-radius: 4px;
         }
 
-        .dm-list::-webkit-scrollbar-thumb:hover,
-        .message-log::-webkit-scrollbar-thumb:hover {
+        ::-webkit-scrollbar-thumb:hover {
             background-color: #484c52;
+        }
+
+        /* ===== UTILITIES ===== */
+        .hidden {
+            display: none;
+        }
+
+        .empty-state {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+            color: #b9bbbe;
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <!-- ===== AUTHENTICATION GATEWAY ===== -->
+    <div class="auth-container" id="authContainer">
+        <div class="auth-box">
+            <div class="auth-header">
+                <h1 class="auth-title">BlockTalk</h1>
+                <p class="auth-subtitle" id="authModeSubtitle">Sign up to get started</p>
+            </div>
+            <form id="authForm">
+                <div class="form-group">
+                    <label class="form-label">Username</label>
+                    <input type="text" class="form-input" id="authUsername" placeholder="Choose a username" required>
+                    <div class="form-error" id="usernameError"></div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input type="email" class="form-input" id="authEmail" placeholder="Enter your email" required>
+                    <div class="form-error" id="emailError"></div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" class="form-input" id="authPassword" placeholder="Create a password" required>
+                    <div class="form-error" id="passwordError"></div>
+                </div>
+                <div class="form-group" id="confirmPasswordGroup">
+                    <label class="form-label">Confirm Password</label>
+                    <input type="password" class="form-input" id="authConfirmPassword" placeholder="Confirm password" required>
+                    <div class="form-error" id="confirmError"></div>
+                </div>
+                <button type="submit" class="auth-button" id="authSubmitBtn">Sign Up</button>
+            </form>
+            <div class="auth-toggle">
+                <span id="toggleText">Already have an account? </span>
+                <button type="button" id="authToggleBtn">Sign In</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MAIN APPLICATION ===== -->
+    <div class="app-container hidden" id="appContainer">
         <!-- LEFT SIDEBAR -->
         <div class="sidebar">
-            <!-- Profile Status Module -->
-            <div class="profile-status">
-                <div class="profile-status-content">
-                    <div class="status-label">As: user1</div>
-                    <button class="switch-button">Switch</button>
+            <div class="user-profile-panel">
+                <div class="user-info">
+                    <div class="user-label" id="userLabel">As: user1</div>
+                    <button class="logout-button" id="logoutBtn">Logout</button>
                 </div>
-                <div class="status-descriptor">Connected to BlockTalk</div>
+                <div class="user-status">Connected to BlockTalk</div>
             </div>
 
-            <!-- Friend Lookup Utility -->
-            <div class="friend-lookup">
-                <div class="lookup-title">FIND FRIENDS</div>
-                <div class="lookup-container">
-                    <input type="text" class="lookup-input" placeholder="Search...">
-                    <button class="add-button">Add</button>
+            <div class="nav-tabs">
+                <button class="nav-tab active" data-tab="dm">Messages</button>
+                <button class="nav-tab" data-tab="friends">Friends</button>
+            </div>
+
+            <!-- FRIENDS PANEL -->
+            <div class="friends-panel active" id="friendsPanel">
+                <div class="friends-header">
+                    <div class="friends-section-title">Add Friends</div>
+                    <div class="add-friend-container">
+                        <input type="text" class="add-friend-input" id="addFriendInput" placeholder="Username">
+                        <button class="add-friend-button" id="addFriendBtn">Send</button>
+                    </div>
+                </div>
+                <div class="friends-list" id="friendsList">
+                    <!-- Friends dynamically inserted here -->
                 </div>
             </div>
 
-            <!-- Direct Messages Roster Drawer -->
-            <div class="dm-roster">
-                <div class="dm-title">DIRECT MESSAGES</div>
-                <div class="dm-list">
-                    <div class="dm-item active">@ alice</div>
-                    <div class="dm-item">@ bob</div>
-                    <div class="dm-item">@ charlie</div>
-                    <div class="dm-item">@ diana</div>
-                    <div class="dm-item">@ eve</div>
-                    <div class="dm-item">@ frank</div>
-                    <div class="dm-item">@ grace</div>
-                    <div class="dm-item">@ henry</div>
+            <!-- DIRECT MESSAGES PANEL -->
+            <div class="dm-panel" id="dmPanel">
+                <div class="dm-header">
+                    <div class="friends-section-title">Direct Messages</div>
+                </div>
+                <div class="dm-list" id="dmList">
+                    <!-- DMs dynamically inserted here -->
                 </div>
             </div>
         </div>
 
-        <!-- CENTER CHAT CONTAINER -->
+        <!-- MAIN CHAT AREA -->
         <div class="main-chat">
-            <!-- Conversation Header -->
-            <div class="chat-header">
+            <!-- CHAT HEADER -->
+            <div class="chat-header" id="chatHeaderContainer">
                 <div>
-                    <div class="header-title">@ alice</div>
-                    <div class="header-subtitle">Direct Message</div>
+                    <div class="chat-title" id="chatTitle">Select a conversation</div>
+                    <div class="chat-subtitle" id="chatSubtitle">Choose a friend to message</div>
+                </div>
+                <div class="chat-header-right">
+                    <span id="onlineStatus"></span>
                 </div>
             </div>
 
-            <!-- Message Log Canvas -->
-            <div class="message-log">
-                <div class="message-group">
-                    <div class="message-header">
-                        <span class="sender-name">alice</span>
-                        <span class="message-timestamp">10:23 AM</span>
-                    </div>
-                    <div class="message-content">Hey! How are you doing today?</div>
-                </div>
-
-                <div class="message-group">
-                    <div class="message-header">
-                        <span class="sender-name">alice</span>
-                        <span class="message-timestamp">10:24 AM</span>
-                    </div>
-                    <div class="message-content">I've been working on that project we discussed.</div>
-                </div>
-
-                <div class="message-divider"></div>
-
-                <div class="message-group">
-                    <div class="message-header">
-                        <span class="sender-name">user1</span>
-                        <span class="message-timestamp">10:26 AM</span>
-                    </div>
-                    <div class="message-content">Doing well! Thanks for checking in. That sounds great!</div>
-                </div>
-
-                <div class="message-group">
-                    <div class="message-header">
-                        <span class="sender-name">user1</span>
-                        <span class="message-timestamp">10:27 AM</span>
-                    </div>
-                    <div class="message-content">Let me know if you need any help with it.</div>
-                </div>
-
-                <div class="message-divider"></div>
-
-                <div class="message-group">
-                    <div class="message-header">
-                        <span class="sender-name">alice</span>
-                        <span class="message-timestamp">10:30 AM</span>
-                    </div>
-                    <div class="message-content">That would be awesome! Can we hop on a call later?</div>
+            <!-- MESSAGE LOG -->
+            <div class="message-log" id="messageLog">
+                <div class="no-chat-selected">
+                    <div class="no-chat-icon">💬</div>
+                    <div class="no-chat-text">No conversation selected</div>
+                    <div class="no-chat-subtitle">Select a friend to start messaging</div>
                 </div>
             </div>
 
-            <!-- Text Input Frame -->
+            <!-- MESSAGE INPUT -->
             <div class="input-frame">
-                <div class="input-container">
-                    <textarea class="message-input" placeholder="Message @alice"></textarea>
+                <div class="input-wrapper">
+                    <textarea class="message-input" id="messageInput" placeholder="Type a message..." maxlength="2000"></textarea>
+                    <button class="send-button" id="sendBtn">Send</button>
                 </div>
             </div>
         </div>
     </div>
+
+    <script>
+        // ===== BLOCKTALK APPLICATION STATE MANAGEMENT =====
+        // This modular architecture separates concerns for maintainability and performance
+
+        // NOTE: Backend API integration points marked with [API CALL]
+        // Replace localStorage usage with actual backend API calls for production
+
+        const BlockTalk = {
+            // ===== STATE MANAGEMENT =====
+            state: {
+                isAuthenticated: false,
+                currentUser: null,
+                currentConversation: null,
+                friends: [],
+                messages: {}, // Structure: { "friendUsername": [{ id, sender, content, timestamp, status }] }
+                pendingFriendRequests: {
+                    incoming: [],
+                    outgoing: []
+                },
+                onlineUsers: new Set(),
+                typingUsers: {}
+            },
+
+            // ===== INITIALIZATION =====
+            init: function() {
+                this.loadStoredSession();
+                this.setupEventListeners();
+                this.renderUI();
+            },
+
+            // ===== AUTHENTICATION MODULE =====
+            auth: {
+                isSignUpMode: true,
+
+                toggleMode: function() {
+                    this.isSignUpMode = !this.isSignUpMode;
+                    document.getElementById('authModeSubtitle').textContent = 
+                        this.isSignUpMode ? 'Sign up to get started' : 'Sign in to continue';
+                    document.getElementById('authSubmitBtn').textContent = 
+                        this.isSignUpMode ? 'Sign Up' : 'Sign In';
+                    document.getElementById('toggleText').textContent = 
+                        this.isSignUpMode ? 'Already have an account? ' : "Don't have an account? ";
+                    document.getElementById('confirmPasswordGroup').style.display = 
+                        this.isSignUpMode ? 'block' : 'none';
+                },
+
+                handleSubmit: function(e) {
+                    e.preventDefault();
+                    const username = document.getElementById('authUsername').value.trim();
+                    const email = document.getElementById('authEmail').value.trim();
+                    const password = document.getElementById('authPassword').value;
+                    const confirmPassword = document.getElementById('authConfirmPassword').value;
+
+                    // Clear previous errors
+                    this.clearErrors();
+
+                    // Validation
+                    if (!username || username.length < 3) {
+                        this.showError('usernameError', 'Username must be at least 3 characters');
+                        return;
+                    }
+
+                    if (!email || !this.isValidEmail(email)) {
+                        this.showError('emailError', 'Please enter a valid email');
+                        return;
+                    }
+
+                    if (!password || password.length < 6) {
+                        this.showError('passwordError', 'Password must be at least 6 characters');
+                        return;
+                    }
+
+                    if (this.isSignUpMode && password !== confirmPassword) {
+                        this.showError('confirmError', 'Passwords do not match');
+                        return;
+                    }
+
+                    // [API CALL] Authentication endpoint
+                    // POST /api/auth/signup or /api/auth/signin
+                    // Response: { success: boolean, token: string, user: { id, username, email } }
+                    
+                    // For now, simulate with localStorage
+                    if (this.isSignUpMode) {
+                        // Check if user already exists
+                        const existingUsers = JSON.parse(localStorage.getItem('blocktalk_users') || '{}');
+                        if (existingUsers[username]) {
+                            this.showError('usernameError', 'Username already taken');
+                            return;
+                        }
+                        existingUsers[username] = { email, password, createdAt: Date.now() };
+                        localStorage.setItem('blocktalk_users', JSON.stringify(existingUsers));
+                    } else {
+                        // Login
+                        const existingUsers = JSON.parse(localStorage.getItem('blocktalk_users') || '{}');
+                        if (!existingUsers[username] || existingUsers[username].password !== password) {
+                            this.showError('passwordError', 'Invalid credentials');
+                            return;
+                        }
+                    }
+
+                    // Authentication successful
+                    BlockTalk.state.isAuthenticated = true;
+                    BlockTalk.state.currentUser = { username, email };
+                    BlockTalk.saveSession();
+                    BlockTalk.showApp();
+                },
+
+                isValidEmail: function(email) {
+                    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+                },
+
+                showError: function(elementId, message) {
+                    const errorEl = document.getElementById(elementId);
+                    errorEl.textContent = message;
+                    errorEl.classList.add('show');
+                },
+
+                clearErrors: function() {
+                    document.querySelectorAll('.form-error').forEach(el => {
+                        el.classList.remove('show');
+                        el.textContent = '';
+                    });
+                }
+            },
+
+            // ===== PERSISTENCE LAYER =====
+            saveSession: function() {
+                const session = {
+                    currentUser: this.state.currentUser,
+                    timestamp: Date.now()
+                };
+                localStorage.setItem('blocktalk_session', JSON.stringify(session));
+                
+                // [API CALL] Save session to backend
+                // POST /api/sessions/create
+                // Body: { userId, sessionToken }
+            },
+
+            loadStoredSession: function() {
+                const session = localStorage.getItem('blocktalk_session');
+                if (session) {
+                    const parsed = JSON.parse(session);
+                    // Validate session is not stale (optional: 24 hour expiry)
+                    if (Date.now() - parsed.timestamp < 86400000) {
+                        this.state.isAuthenticated = true;
+                        this.state.currentUser = parsed.currentUser;
+                        this.loadUserData();
+                    } else {
+                        localStorage.removeItem('blocktalk_session');
+                    }
+                }
+            },
+
+            loadUserData: function() {
+                // [API CALL] Fetch user data from backend
+                // GET /api/users/:username/data
+                // Response: { friends, messages, pendingRequests, onlineUsers }
+
+                // Simulate with localStorage
+                const userKey = `blocktalk_user_${this.state.currentUser.username}`;
+                const userData = JSON.parse(localStorage.getItem(userKey) || '{"friends":[],"messages":{},"pendingRequests":{"incoming":[],"outgoing":[]}}');
+                
+                this.state.friends = userData.friends || [];
+                this.state.messages = userData.messages || {};
+                this.state.pendingFriendRequests = userData.pendingRequests || { incoming: [], outgoing: [] };
+                this.state.onlineUsers = new Set(userData.onlineUsers || []);
+            },
+
+            saveUserData: function() {
+                const userKey = `blocktalk_user_${this.state.currentUser.username}`;
+                const userData = {
+                    friends: this.state.friends,
+                    messages: this.state.messages,
+                    pendingRequests: this.state.pendingFriendRequests,
+                    onlineUsers: Array.from(this.state.onlineUsers)
+                };
+                localStorage.setItem(userKey, JSON.stringify(userData));
+                
+                // [API CALL] Save user data to backend
+                // POST /api/users/:username/data
+                // Body: userData
+            },
+
+            // ===== SOCIAL NETWORKING MODULE =====
+            friends: {
+                sendRequest: function(targetUsername) {
+                    if (!targetUsername || targetUsername === BlockTalk.state.currentUser.username) {
+                        alert('Invalid username');
+                        return;
+                    }
+
+                    // Check if already friends
+                    if (BlockTalk.state.friends.find(f => f.username === targetUsername)) {
+                        alert('Already friends with this user');
+                        return;
+                    }
+
+                    // Check if request already sent
+                    if (BlockTalk.state.pendingFriendRequests.outgoing.includes(targetUsername)) {
+                        alert('Friend request already sent');
+                        return;
+                    }
+
+                    // [API CALL] Send friend request
+                    // POST /api/friends/request
+                    // Body: { fromUser, toUser }
+                    // Response: { success: boolean }
+
+                    BlockTalk.state.pendingFriendRequests.outgoing.push(targetUsername);
+                    BlockTalk.saveUserData();
+                    BlockTalk.renderFriendsList();
+                    document.getElementById('addFriendInput').value = '';
+                },
+
+                acceptRequest: function(fromUsername) {
+                    // [API CALL] Accept friend request
+                    // POST /api/friends/accept
+                    // Body: { fromUser, toUser }
+
+                    const index = BlockTalk.state.pendingFriendRequests.incoming.indexOf(fromUsername);
+                    if (index > -1) {
+                        BlockTalk.state.pendingFriendRequests.incoming.splice(index, 1);
+                        BlockTalk.state.friends.push({
+                            username: fromUsername,
+                            status: 'online',
+                            addedAt: Date.now()
+                        });
+                        BlockTalk.saveUserData();
+                        BlockTalk.renderFriendsList();
+                    }
+                },
+
+                declineRequest: function(fromUsername) {
+                    // [API CALL] Decline friend request
+                    // POST /api/friends/decline
+                    // Body: { fromUser, toUser }
+
+                    const index = BlockTalk.state.pendingFriendRequests.incoming.indexOf(fromUsername);
+                    if (index > -1) {
+                        BlockTalk.state.pendingFriendRequests.incoming.splice(index, 1);
+                        BlockTalk.saveUserData();
+                        BlockTalk.renderFriendsList();
+                    }
+                },
+
+                removeFriend: function(friendUsername) {
+                    // [API CALL] Remove friend
+                    // POST /api/friends/remove
+                    // Body: { currentUser, targetUser }
+
+                    BlockTalk.state.friends = BlockTalk.state.friends.filter(f => f.username !== friendUsername);
+                    if (BlockTalk.state.currentConversation === friendUsername) {
+                        BlockTalk.state.currentConversation = null;
+                    }
+                    BlockTalk.saveUserData();
+                    BlockTalk.renderFriendsList();
+                    BlockTalk.renderChatArea();
+                }
+            },
+
+            // ===== REAL-TIME CHAT MODULE =====
+            chat: {
+                sendMessage: function(content) {
+                    if (!content.trim() || !BlockTalk.state.currentConversation) {
+                        return;
+                    }
+
+                    const message = {
+                        id: Date.now().toString(),
+                        sender: BlockTalk.state.currentUser.username,
+                        content: content.trim(),
+                        timestamp: Date.now(),
+                        status: 'sent' // 'sent', 'delivered', 'read'
+                    };
+
+                    // [API CALL] Send message
+                    // POST /api/messages/send
+                    // Body: { from, to, content, timestamp }
+                    // Response: { success: boolean, messageId: string }
+
+                    if (!BlockTalk.state.messages[BlockTalk.state.currentConversation]) {
+                        BlockTalk.state.messages[BlockTalk.state.currentConversation] = [];
+                    }
+
+                    BlockTalk.state.messages[BlockTalk.state.currentConversation].push(message);
+                    BlockTalk.saveUserData();
+                    BlockTalk.renderMessages();
+                    document.getElementById('messageInput').value = '';
+                    BlockTalk.clearTypingIndicator();
+                },
+
+                markAsRead: function(friendUsername) {
+                    // [API CALL] Mark messages as read
+                    // POST /api/messages/mark-read
+                    // Body: { from, to, messageIds }
+
+                    if (BlockTalk.state.messages[friendUsername]) {
+                        BlockTalk.state.messages[friendUsername].forEach(msg => {
+                            if (msg.sender === friendUsername && msg.status !== 'read') {
+                                msg.status = 'read';
+                            }
+                        });
+                        BlockTalk.saveUserData();
+                    }
+                },
+
+                handleTyping: function() {
+                    if (!BlockTalk.state.currentConversation) return;
+
+                    // [API CALL] Broadcast typing indicator
+                    // POST /api/typing/start
+                    // Body: { from, to }
+
+                    // Debounced typing indicator (simplified)
+                    clearTimeout(BlockTalk.typingTimeout);
+                    BlockTalk.typingTimeout = setTimeout(() => {
+                        // [API CALL] Clear typing indicator
+                        // POST /api/typing/stop
+                    }, 3000);
+                }
+            },
+
+            // ===== UI RENDERING MODULE =====
+            renderUI: function() {
+                if (this.state.isAuthenticated) {
+                    this.showApp();
+                } else {
+                    this.showAuth();
+                }
+            },
+
+            showAuth: function() {
+                document.getElementById('authContainer').classList.remove('hidden');
+                document.getElementById('appContainer').classList.add('hidden');
+            },
+
+            showApp: function() {
+                document.getElementById('authContainer').classList.add('hidden');
+                document.getElementById('appContainer').classList.remove('hidden');
+                document.getElementById('userLabel').textContent = `As: ${this.state.currentUser.username}`;
+                this.renderFriendsList();
+                this.renderDMList();
+            },
+
+            renderFriendsList: function() {
+                const friendsList = document.getElementById('friendsList');
+                friendsList.innerHTML = '';
+
+                // Render pending incoming requests
+                if (this.state.pendingFriendRequests.incoming.length > 0) {
+                    const incomingSection = document.createElement('div');
+                    incomingSection.innerHTML = '<div class="friends-section-title" style="padding: 12px 8px 8px; margin-top: 12px;">Pending Requests</div>';
+                    friendsList.appendChild(incomingSection);
+
+                    this.state.pendingFriendRequests.incoming.forEach(username => {
+                        const item = document.createElement('div');
+                        item.className = 'friend-item';
+                        item.innerHTML = `
+                            <span>${username}</span>
+                            <div class="friend-actions">
+                                <button class="friend-action-btn friend-accept-btn" data-accept="${username}">✓</button>
+                                <button class="friend-action-btn friend-decline-btn" data-decline="${username}">✕</button>
+                            </div>
+                        `;
+                        friendsList.appendChild(item);
+                    });
+                }
+
+                // Render pending outgoing requests
+                if (this.state.pendingFriendRequests.outgoing.length > 0) {
+                    const outgoingSection = document.createElement('div');
+                    outgoingSection.innerHTML = '<div class="friends-section-title" style="padding: 12px 8px 8px; margin-top: 12px;">Sent Requests</div>';
+                    friendsList.appendChild(outgoingSection);
+
+                    this.state.pendingFriendRequests.outgoing.forEach(username => {
+                        const item = document.createElement('div');
+                        item.className = 'friend-item';
+                        item.innerHTML = `
+                            <span>${username}</span>
+                            <span class="friend-actions" style="color: #72767d; font-size: 11px;">Pending...</span>
+                        `;
+                        friendsList.appendChild(item);
+                    });
+                }
+
+                // Render accepted friends
+                if (this.state.friends.length > 0) {
+                    const friendsSection = document.createElement('div');
+                    friendsSection.innerHTML = '<div class="friends-section-title" style="padding: 12px 8px 8px; margin-top: 12px;">Friends</div>';
+                    friendsList.appendChild(friendsSection);
+
+                    this.state.friends.forEach(friend => {
+                        const item = document.createElement('div');
+                        item.className = 'friend-item';
+                        const onlineStatus = this.state.onlineUsers.has(friend.username) ? '🟢' : '⚫';
+                        item.innerHTML = `
+                            <span>${onlineStatus} ${friend.username}</span>
+                            <button class="friend-action-btn friend-remove-btn" data-remove="${friend.username}">Remove</button>
+                        `;
+                        friendsList.appendChild(item);
+                    });
+                }
+
+                // Add event listeners for friend actions
+                friendsList.querySelectorAll('[data-accept]').forEach(btn => {
+                    btn.addEventListener('click', () => this.friends.acceptRequest(btn.dataset.accept));
+                });
+
+                friendsList.querySelectorAll('[data-decline]').forEach(btn => {
+                    btn.addEventListener('click', () => this.friends.declineRequest(btn.dataset.decline));
+                });
+
+                friendsList.querySelectorAll('[data-remove]').forEach(btn => {
+                    btn.addEventListener('click', () => this.friends.removeFriend(btn.dataset.remove));
+                });
+            },
+
+            renderDMList: function() {
+                const dmList = document.getElementById('dmList');
+                dmList.innerHTML = '';
+
+                if (this.state.friends.length === 0) {
+                    dmList.innerHTML = '<div class="empty-state">No friends yet. Add friends to start messaging!</div>';
+                    return;
+                }
+
+                this.state.friends.forEach(friend => {
+                    const item = document.createElement('div');
+                    item.className = 'dm-item';
+                    if (this.state.currentConversation === friend.username) {
+                        item.classList.add('active');
+                    }
+
+                    const messages = this.state.messages[friend.username] || [];
+                    const unreadCount = messages.filter(m => m.sender === friend.username && m.status !== 'read').length;
+                    const lastMessage = messages[messages.length - 1];
+                    const preview = lastMessage ? lastMessage.content.substring(0, 30) + (lastMessage.content.length > 30 ? '...' : '') : 'No messages yet';
+
+                    const onlineStatus = this.state.onlineUsers.has(friend.username) ? '🟢' : '⚫';
+
+                    item.innerHTML = `
+                        <div class="dm-item-info">
+                            <div class="dm-item-name">${onlineStatus} ${friend.username}</div>
+                            <div class="dm-item-preview">${preview}</div>
+                        </div>
+                        ${unreadCount > 0 ? `<div class="dm-unread-badge">${unreadCount}</div>` : ''}
+                    `;
+
+                    item.addEventListener('click', () => {
+                        this.selectConversation(friend.username);
+                    });
+
+                    dmList.appendChild(item);
+                });
+            },
+
+            selectConversation: function(friendUsername) {
+                this.state.currentConversation = friendUsername;
+                this.renderDMList();
+                this.renderChatArea();
+                this.chat.markAsRead(friendUsername);
+            },
+
+            renderChatArea: function() {
+                const messageLog = document.getElementById('messageLog');
+                const chatTitle = document.getElementById('chatTitle');
+                const chatSubtitle = document.getElementById('chatSubtitle');
+                const onlineStatus = document.getElementById('onlineStatus');
+                const messageInput = document.getElementById('messageInput');
+
+                if (!this.state.currentConversation) {
+                    messageLog.innerHTML = `
+                        <div class="no-chat-selected">
+                            <div class="no-chat-icon">💬</div>
+                            <div class="no-chat-text">No conversation selected</div>
+                            <div class="no-chat-subtitle">Select a friend to start messaging</div>
+                        </div>
+                    `;
+                    messageInput.disabled = true;
+                    document.getElementById('sendBtn').disabled = true;
+                    return;
+                }
+
+                messageInput.disabled = false;
+                document.getElementById('sendBtn').disabled = false;
+                messageInput.placeholder = `Message @${this.state.currentConversation}...`;
+
+                chatTitle.textContent = `@ ${this.state.currentConversation}`;
+                const isOnline = this.state.onlineUsers.has(this.state.currentConversation);
+                chatSubtitle.textContent = isOnline ? 'Online now' : 'Offline';
+                onlineStatus.innerHTML = isOnline ? 
+                    `<span class="online-indicator"></span>Online` : 
+                    `<span class="online-indicator offline"></span>Offline`;
+
+                this.renderMessages();
+            },
+
+            renderMessages: function() {
+                const messageLog = document.getElementById('messageLog');
+                const messages = this.state.messages[this.state.currentConversation] || [];
+
+                if (messages.length === 0) {
+                    messageLog.innerHTML = `
+                        <div class="no-chat-selected">
+                            <div class="no-chat-icon">👋</div>
+                            <div class="no-chat-text">Start a conversation</div>
+                            <div class="no-chat-subtitle">This is the beginning of your conversation with @${this.state.currentConversation}</div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                messageLog.innerHTML = '';
+
+                messages.forEach(msg => {
+                    const messageGroup = document.createElement('div');
+                    messageGroup.className = 'message-group';
+
+                    const timestamp = new Date(msg.timestamp).toLocaleTimeString([], { 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    });
+
+                    let statusText = '';
+                    let statusClass = '';
+                    if (msg.sender === this.state.currentUser.username) {
+                        statusText = msg.status === 'read' ? '✓✓' : '✓';
+                        statusClass = msg.status === 'read' ? 'read' : '';
+                    }
+
+                    messageGroup.innerHTML = `
+                        <div class="message-header">
+                            <span class="message-sender">${msg.sender}</span>
+                            <span class="message-timestamp">${timestamp}</span>
+                        </div>
+                        <div class="message-body">
+                            <div class="message-content">${this.escapeHtml(msg.content)}</div>
+                            ${statusText ? `<div class="message-status ${statusClass}">${statusText}</div>` : ''}
+                        </div>
+                    `;
+
+                    messageLog.appendChild(messageGroup);
+                });
+
+                // Show typing indicator if friend is typing
+                if (this.state.typingUsers[this.state.currentConversation]) {
+                    const typingDiv = document.createElement('div');
+                    typingDiv.className = 'typing-indicator';
+                    typingDiv.innerHTML = `
+                        <span>${this.state.currentConversation} is typing</span>
+                        <span class="typing-dot"></span>
+                        <span class="typing-dot"></span>
+                        <span class="typing-dot"></span>
+                    `;
+                    messageLog.appendChild(typingDiv);
+                }
+
+                // Scroll to bottom
+                messageLog.scrollTop = messageLog.scrollHeight;
+            },
+
+            escapeHtml: function(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            },
+
+            clearTypingIndicator: function() {
+                if (this.state.currentConversation) {
+                    delete this.state.typingUsers[this.state.currentConversation];
+                    this.renderMessages();
+                }
+            },
+
+            logout: function() {
+                // [API CALL] Logout endpoint
+                // POST /api/auth/logout
+
+                localStorage.removeItem('blocktalk_session');
+                this.state = {
+                    isAuthenticated: false,
+                    currentUser: null,
+                    currentConversation: null,
+                    friends: [],
+                    messages: {},
+                    pendingFriendRequests: { incoming: [], outgoing: [] },
+                    onlineUsers: new Set(),
+                    typingUsers: {}
+                };
+                this.auth.isSignUpMode = true;
+                document.getElementById('authForm').reset();
+                this.renderUI();
+            }
+        };
+
+        // ===== EVENT LISTENER SETUP =====
+        BlockTalk.setupEventListeners = function() {
+            // Auth events
+            document.getElementById('authForm').addEventListener('submit', (e) => this.auth.handleSubmit(e));
+            document.getElementById('authToggleBtn').addEventListener('click', () => this.auth.toggleMode());
+
+            // App events
+            document.getElementById('logoutBtn').addEventListener('click', () => this.logout());
+
+            // Tab navigation
+            document.querySelectorAll('.nav-tab').forEach(tab => {
+                tab.addEventListener('click', (e) => {
+                    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+                    e.target.classList.add('active');
+
+                    const tabName = e.target.dataset.tab;
+                    document.getElementById('friendsPanel').classList.remove('active');
+                    document.getElementById('dmPanel').classList.remove('active');
+
+                    if (tabName === 'friends') {
+                        document.getElementById('friendsPanel').classList.add('active');
+                    } else {
+                        document.getElementById('dmPanel').classList.add('active');
+                    }
+                });
+            });
+
+            // Friends
+            document.getElementById('addFriendBtn').addEventListener('click', () => {
+                const username = document.getElementById('addFriendInput').value;
+                this.friends.sendRequest(username);
+            });
+
+            document.getElementById('addFriendInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    const username = e.target.value;
+                    this.friends.sendRequest(username);
+                }
+            });
+
+            // Chat
+            document.getElementById('sendBtn').addEventListener('click', () => {
+                const content = document.getElementById('messageInput').value;
+                this.chat.sendMessage(content);
+            });
+
+            document.getElementById('messageInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    const content = e.target.value;
+                    this.chat.sendMessage(content);
+                }
+            });
+
+            document.getElementById('messageInput').addEventListener('input', () => {
+                this.chat.handleTyping();
+            });
+        };
+
+        // ===== APPLICATION BOOTSTRAP =====
+        document.addEventListener('DOMContentLoaded', () => {
+            BlockTalk.init();
+
+            // Simulate receiving online status updates (would come from WebSocket in production)
+            // [API CALL] WebSocket connection for real-time updates
+            // ws://server/api/realtime
+            setInterval(() => {
+                // Simulate random online status updates
+                if (BlockTalk.state.isAuthenticated && BlockTalk.state.friends.length > 0) {
+                    const randomFriend = BlockTalk.state.friends[Math.floor(Math.random() * BlockTalk.state.friends.length)];
+                    if (Math.random() > 0.7) {
+                        if (BlockTalk.state.onlineUsers.has(randomFriend.username)) {
+                            BlockTalk.state.onlineUsers.delete(randomFriend.username);
+                        } else {
+                            BlockTalk.state.onlineUsers.add(randomFriend.username);
+                        }
+                        BlockTalk.renderDMList();
+                        if (BlockTalk.state.currentConversation === randomFriend.username) {
+                            BlockTalk.renderChatArea();
+                        }
+                    }
+                }
+            }, 8000);
+
+            // Simulate receiving typing indicators (would come from WebSocket)
+            setInterval(() => {
+                if (BlockTalk.state.isAuthenticated && BlockTalk.state.currentConversation) {
+                    if (Math.random() > 0.85) {
+                        BlockTalk.state.typingUsers[BlockTalk.state.currentConversation] = true;
+                        BlockTalk.renderMessages();
+                        setTimeout(() => {
+                            delete BlockTalk.state.typingUsers[BlockTalk.state.currentConversation];
+                            BlockTalk.renderMessages();
+                        }, 2000 + Math.random() * 2000);
+                    }
+                }
+            }, 5000);
+
+            // Simulate receiving messages (would come from WebSocket)
+            setInterval(() => {
+                if (BlockTalk.state.isAuthenticated && BlockTalk.state.currentConversation && Math.random() > 0.9) {
+                    const randomMessages = [
+                        'Hey, how are you?',
+                        'That sounds great!',
+                        'Let me know when you are free',
+                        'Looking forward to it',
+                        'Thanks for the update',
+                        'Sounds like a plan'
+                    ];
+                    const msg = {
+                        id: Date.now().toString(),
+                        sender: BlockTalk.state.currentConversation,
+                        content: randomMessages[Math.floor(Math.random() * randomMessages.length)],
+                        timestamp: Date.now(),
+                        status: 'delivered'
+                    };
+                    if (!BlockTalk.state.messages[BlockTalk.state.currentConversation]) {
+                        BlockTalk.state.messages[BlockTalk.state.currentConversation] = [];
+                    }
+                    BlockTalk.state.messages[BlockTalk.state.currentConversation].push(msg);
+                    BlockTalk.renderMessages();
+                    BlockTalk.renderDMList();
+                    // Mark as read after short delay
+                    setTimeout(() => {
+                        msg.status = 'read';
+                        BlockTalk.renderMessages();
+                    }, 1000);
+                }
+            }, 6000);
+        });
+    </script>
 </body>
 </html>
