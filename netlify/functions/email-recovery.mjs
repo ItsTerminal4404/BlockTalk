@@ -104,33 +104,32 @@ async function setJSON(key, value) {
 }
 
 async function sendEmail(email, code, purpose) {
-    const apiKey = requiredEnv('BIRD_API_KEY');
-    const from = requiredEnv('RECOVERY_FROM_EMAIL');
-    const region = /^bk_(us1|eu1)_/.exec(apiKey)?.[1];
-    if (!region) {
-        throw new Error('BIRD_API_KEY must be a Bird API key beginning with bk_us1_ or bk_eu1_.');
-    }
+    const apiKey = requiredEnv('BIRD_API_KEY'); 
+    const from = requiredEnv('RECOVERY_FROM_EMAIL'); 
+    
     const subject = purpose === 'reset'
         ? 'Reset your BlockTalk password'
         : 'Verify your BlockTalk recovery email';
     const text = `Your BlockTalk verification code is ${code}. It expires in 10 minutes. If you did not request this, you can ignore this message.`;
-    const result = await fetch(`https://${region}.platform.bird.com/v1/email/messages`, {
+
+    // FIXED: This is the full, unshortened API endpoint address
+    const result = await fetch("https://api.resend.com/emails", {
         method: 'POST',
         headers: {
-            authorization: `AccessKey ${apiKey}`,
-            'content-type': 'application/json'
+            'Authorization': `Bearer ${apiKey}`, 
+            'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            from: { email: from, name: 'BlockTalk' },
+            from: `BlockTalk <${from}>`,
             to: [email],
-            subject,
-            text,
-            category: 'transactional'
+            subject: subject,
+            text: text
         })
     });
+
     if (!result.ok) {
         const detail = await result.text();
-        console.error('Bird rejected a recovery email:', result.status, detail);
+        console.error('Resend rejected a recovery email:', result.status, detail);
         throw new Error('The verification email could not be sent. Check the email service configuration and try again.');
     }
 }
