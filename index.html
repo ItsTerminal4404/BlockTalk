@@ -922,9 +922,6 @@
         // ===== BLOCKTALK APPLICATION STATE MANAGEMENT =====
         // This modular architecture separates concerns for maintainability and performance
 
-        // NOTE: Backend API integration points marked with [API CALL]
-        // Replace localStorage usage with actual backend API calls for production
-
         const BlockTalk = {
             // ===== STATE MANAGEMENT =====
             state: {
@@ -941,12 +938,52 @@
                 onlineUsers: new Set(),
                 typingUsers: {}
             },
+            database: { profiles: {}, calls: {} },
+            sessionToken: null,
+
+            apiRequest: async function(endpoint, options = {}) {
+                const headers = { 'Content-Type': 'application/json', ...options.headers };
+                if (this.sessionToken) headers.Authorization = `Bearer ${this.sessionToken}`;
+                let response;
+                try {
+                    response = await fetch(endpoint, { ...options, headers });
+                } catch (error) {
+                    throw new Error('Could not reach the BlockTalk server. Check your connection and try again.');
+                }
+                const result = response.status === 204 ? null : await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(result?.error || 'The request could not be completed.');
+                return result;
+            },
+
+            applyServerData: function(data) {
+                this.state.currentUser = data.currentUser;
+                this.database = data.database;
+                const profile = this.getUserProfile(this.database, data.currentUser.username);
+                this.state.friends = profile.friends;
+                this.state.messages = profile.messages;
+                this.state.pendingFriendRequests = profile.pendingFriendRequests;
+                this.state.blockedUsers = profile.blockedUsers;
+                this.state.onlineUsers = new Set(profile.onlineUsers || []);
+                window.dispatchEvent(new CustomEvent('blocktalk:database-change'));
+            },
+
+            refreshAndRender: async function() {
+                const data = await this.apiRequest('/api/data');
+                this.applyServerData(data);
+                if (this.state.isAuthenticated) {
+                    this.renderFriendsList();
+                    this.renderDMList();
+                    this.renderChatArea();
+                }
+            },
 
             // ===== INITIALIZATION =====
             init: function() {
-                this.loadStoredSession();
                 this.setupEventListeners();
                 this.renderUI();
+                this.loadStoredSession().catch(error => {
+                    this.auth.showError('passwordError', error.message);
+                });
             },
 
             // ===== AUTHENTICATION MODULE =====
@@ -965,7 +1002,7 @@
                         this.isSignUpMode ? 'block' : 'none';
                 },
 
-                handleSubmit: function(e) {
+                handleSubmit: async function(e) {
                     e.preventDefault();
                     const username = document.getElementById('authUsername').value.trim();
                     const email = document.getElementById('auth-email').value.trim();
@@ -976,12 +1013,12 @@
                     this.clearErrors();
 
                     // Validation
-                    if (!username || username.length < 3) {
-                        this.showError('usernameError', 'Username must be at least 3 characters');
+                    if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username)) {
+                        this.showError('usernameError', 'Username must be 3-32 letters, numbers, dots, dashes, or underscores.');
                         return;
                     }
 
-                    if (!email || !this.isValidEmail(email)) {
+                    if (this.isSignUpMode && (!email || !this.isValidEmail(email))) {
                         this.showError('emailError', 'Please enter a valid email');
                         return;
                     }
@@ -996,52 +1033,26 @@
                         return;
                     }
 
-                    // [API CALL] Authentication endpoint
-                    // POST /api/auth/signup or /api/auth/signin
-                    // Response: { success: boolean, token: string, user: { id, username, email } }
-                    
-                    // For now, simulate with localStorage
-                    let authenticatedEmail = email;
-                    if (this.isSignUpMode) {
-                        // Check if user already exists
-                        const existingUsers = JSON.parse(localStorage.getItem('blocktalk_users') || '{}');
-                        if (existingUsers[username]) {
-                            this.showError('usernameError', 'Username already taken');
-                            return;
-                        }
-
-                        const database = BlockTalk.readDatabase();
-                        const emailKey = email.toLowerCase();
-                        const emailInProfiles = Object.entries(database.profiles).some(([profileUsername, profile]) =>
-                            profileUsername !== username && profile.email && profile.email.toLowerCase() === emailKey
-                        );
-                        const emailInAccounts = Object.entries(existingUsers).some(([profileUsername, account]) =>
-                            profileUsername !== username && account.email && account.email.toLowerCase() === emailKey
-                        );
-                        if (emailInProfiles || emailInAccounts) {
-                            alert('⚠️ This email key is already linked to an active user ID.');
-                            return;
-                        }
-
-                        existingUsers[username] = { email, password, createdAt: Date.now() };
-                        localStorage.setItem('blocktalk_users', JSON.stringify(existingUsers));
-                    } else {
-                        // Login
-                        const existingUsers = JSON.parse(localStorage.getItem('blocktalk_users') || '{}');
-                        if (!existingUsers[username] || existingUsers[username].password !== password) {
-                            this.showError('passwordError', 'Invalid credentials');
-                            return;
-                        }
-                        authenticatedEmail = existingUsers[username].email || email;
+                    try {
+                        const endpoint = this.isSignUpMode ? '/api/auth/signup' : '/api/auth/signin';
+                        const data = await BlockTalk.apiRequest(endpoint, {
+                            method: 'POST',
+                            body: JSON.stringify({ username, email, password })
+                        });
+                        BlockTalk.sessionToken = data.token;
+                        BlockTalk.state.isAuthenticated = true;
+                        BlockTalk.applyServerData(data);
+                        BlockTalk.saveSession();
+                        BlockTalk.showApp();
+                        window.dispatchEvent(new Event('blocktalk:authenticated'));
+                    } catch (error) {
+                        const target = this.isSignUpMode && error.message.toLowerCase().includes('username')
+                            ? 'usernameError'
+                            : this.isSignUpMode && error.message.toLowerCase().includes('email')
+                                ? 'emailError'
+                                : 'passwordError';
+                        this.showError(target, error.message);
                     }
-
-                    // Authentication successful
-                    BlockTalk.state.isAuthenticated = true;
-                    BlockTalk.state.currentUser = { username, email: authenticatedEmail };
-                    BlockTalk.loadUserData();
-                    BlockTalk.saveUserData();
-                    BlockTalk.saveSession();
-                    BlockTalk.showApp();
                 },
 
                 isValidEmail: function(email) {
@@ -1065,73 +1076,41 @@
             // ===== PERSISTENCE LAYER =====
             saveSession: function() {
                 const session = {
-                    currentUser: this.state.currentUser,
+                    token: this.sessionToken,
                     timestamp: Date.now()
                 };
                 localStorage.setItem('blocktalk_session', JSON.stringify(session));
-                
-                // [API CALL] Save session to backend
-                // POST /api/sessions/create
-                // Body: { userId, sessionToken }
             },
 
-            loadStoredSession: function() {
+            loadStoredSession: async function() {
                 const session = localStorage.getItem('blocktalk_session');
                 if (session) {
                     const parsed = JSON.parse(session);
-                    // Validate session is not stale (optional: 24 hour expiry)
-                    if (Date.now() - parsed.timestamp < 86400000) {
-                        this.state.isAuthenticated = true;
-                        this.state.currentUser = parsed.currentUser;
-                        this.loadUserData();
+                    if (typeof parsed.token === 'string' && Date.now() - parsed.timestamp < 30 * 86400000) {
+                        this.sessionToken = parsed.token;
+                        try {
+                            await this.refreshAndRender();
+                            this.state.isAuthenticated = true;
+                            this.showApp();
+                            window.dispatchEvent(new Event('blocktalk:authenticated'));
+                            return;
+                        } catch (error) {
+                            if (!error.message.includes('sign in again')) throw error;
+                            this.sessionToken = null;
+                            localStorage.removeItem('blocktalk_session');
+                        }
                     } else {
                         localStorage.removeItem('blocktalk_session');
                     }
                 }
             },
 
-            databaseKey: 'blocktalk_database',
-
             readDatabase: function() {
-                let database;
-                try {
-                    database = JSON.parse(localStorage.getItem(this.databaseKey) || '{"profiles":{}}');
-                } catch (error) {
-                    console.warn('BlockTalk database could not be read; starting with an empty database.', error);
-                }
-                if (!database || !database.profiles || typeof database.profiles !== 'object') {
-                    database = { profiles: {}, calls: {} };
-                }
-                if (!database.calls || typeof database.calls !== 'object') database.calls = {};
-
-                const legacyKeys = [];
-                for (let index = 0; index < localStorage.length; index += 1) {
-                    const key = localStorage.key(index);
-                    if (key && key.startsWith('blocktalk_user_')) legacyKeys.push(key);
-                }
-                legacyKeys.forEach(key => {
-                    const username = key.slice('blocktalk_user_'.length);
-                    if (!database.profiles[username]) {
-                        try {
-                            database.profiles[username] = this.createUserProfile(
-                                JSON.parse(localStorage.getItem(key) || '{}')
-                            );
-                        } catch (error) {
-                            database.profiles[username] = this.createUserProfile();
-                        }
-                    }
-                });
-
-                if (legacyKeys.length > 0) {
-                    this.writeDatabase(database, false);
-                    legacyKeys.forEach(key => localStorage.removeItem(key));
-                    window.dispatchEvent(new CustomEvent('blocktalk:database-change'));
-                }
-                return database;
+                return this.database;
             },
 
             writeDatabase: function(database, notify = true) {
-                localStorage.setItem(this.databaseKey, JSON.stringify(database));
+                this.database = database;
                 if (notify) window.dispatchEvent(new CustomEvent('blocktalk:database-change'));
             },
 
@@ -1160,270 +1139,85 @@
                 return database.profiles[username];
             },
 
-            loadUserData: function() {
+            loadUserData: async function() {
                 if (!this.state.currentUser) return;
-
-                const username = this.state.currentUser.username;
-                const database = this.readDatabase();
-                let profile = database.profiles[username];
-                if (!profile) {
-                    profile = this.createUserProfile();
-                    database.profiles[username] = profile;
-                    this.writeDatabase(database);
-                }
-
-                profile = this.createUserProfile(profile);
-                const accounts = JSON.parse(localStorage.getItem('blocktalk_users') || '{}');
-                profile.email = profile.email || accounts[username]?.email || this.state.currentUser.email || '';
-                this.state.currentUser.email = profile.email;
-                this.state.friends = profile.friends;
-                this.state.messages = profile.messages;
-                this.state.pendingFriendRequests = profile.pendingFriendRequests;
-                this.state.blockedUsers = profile.blockedUsers;
-                this.state.onlineUsers = new Set(profile.onlineUsers);
-            },
-
-            saveUserData: function() {
-                if (!this.state.currentUser) return;
-
-                const database = this.readDatabase();
-                const profile = this.getUserProfile(database, this.state.currentUser.username);
-                profile.email = this.state.currentUser.email || profile.email;
-                profile.friends = this.state.friends;
-                profile.messages = this.state.messages;
-                profile.pendingFriendRequests = this.state.pendingFriendRequests;
-                profile.onlineUsers = Array.from(this.state.onlineUsers);
-                this.writeDatabase(database);
+                await this.refreshAndRender();
             },
 
             // ===== SOCIAL NETWORKING MODULE =====
             friends: {
-                sendRequest: function(targetUsername) {
-                    const senderUsername = BlockTalk.state.currentUser.username;
-                    const normalizedTarget = targetUsername.trim();
-                    if (!normalizedTarget || normalizedTarget === senderUsername) {
-                        alert('Invalid username');
-                        return;
-                    }
-
-                    const accounts = JSON.parse(localStorage.getItem('blocktalk_users') || '{}');
-                    if (!accounts[normalizedTarget]) {
-                        alert('No account found for this username');
-                        return;
-                    }
-
-                    const database = BlockTalk.readDatabase();
-                    const sender = BlockTalk.getUserProfile(database, senderUsername);
-                    const recipient = BlockTalk.getUserProfile(database, normalizedTarget);
-                    if (sender.blockedUsers.includes(normalizedTarget) || recipient.blockedUsers.includes(senderUsername)) {
-                        alert('This user cannot be reached.');
-                        return;
-                    }
-                    if (sender.friends.some(friend => friend.username === normalizedTarget) ||
-                        recipient.friends.some(friend => friend.username === senderUsername)) {
-                        alert('Already friends with this user');
-                        return;
-                    }
-
-                    if (sender.pendingFriendRequests.outgoing.includes(normalizedTarget) ||
-                        recipient.pendingFriendRequests.incoming.includes(senderUsername)) {
-                        alert('Friend request already sent');
-                        return;
-                    }
-
-                    sender.pendingFriendRequests.outgoing.push(normalizedTarget);
-                    recipient.pendingFriendRequests.incoming.push(senderUsername);
-                    BlockTalk.writeDatabase(database);
-                    BlockTalk.loadUserData();
-                    BlockTalk.renderFriendsList();
-                    BlockTalk.renderDMList();
-                    document.getElementById('addFriendInput').value = '';
-                },
-
-                acceptRequest: function(fromUsername) {
-                    const username = BlockTalk.state.currentUser.username;
-                    const database = BlockTalk.readDatabase();
-                    const recipient = BlockTalk.getUserProfile(database, username);
-                    const requester = BlockTalk.getUserProfile(database, fromUsername);
-                    if (!recipient.pendingFriendRequests.incoming.includes(fromUsername) ||
-                        recipient.blockedUsers.includes(fromUsername) || requester.blockedUsers.includes(username)) return;
-
-                    recipient.pendingFriendRequests.incoming = recipient.pendingFriendRequests.incoming
-                        .filter(requesterName => requesterName !== fromUsername);
-                    requester.pendingFriendRequests.outgoing = requester.pendingFriendRequests.outgoing
-                        .filter(recipientName => recipientName !== username);
-
-                    if (!recipient.friends.some(friend => friend.username === fromUsername)) {
-                        recipient.friends.push({ username: fromUsername, status: 'online', addedAt: Date.now() });
-                    }
-                    if (!requester.friends.some(friend => friend.username === username)) {
-                        requester.friends.push({ username, status: 'online', addedAt: Date.now() });
-                    }
-
-                    BlockTalk.writeDatabase(database);
-                    BlockTalk.loadUserData();
-                    BlockTalk.renderFriendsList();
-                    BlockTalk.renderDMList();
-                    BlockTalk.selectConversation(fromUsername);
-                },
-
-                declineRequest: function(fromUsername) {
-                    const username = BlockTalk.state.currentUser.username;
-                    const database = BlockTalk.readDatabase();
-                    const recipient = BlockTalk.getUserProfile(database, username);
-                    const requester = BlockTalk.getUserProfile(database, fromUsername);
-                    recipient.pendingFriendRequests.incoming = recipient.pendingFriendRequests.incoming
-                        .filter(requesterName => requesterName !== fromUsername);
-                    requester.pendingFriendRequests.outgoing = requester.pendingFriendRequests.outgoing
-                        .filter(recipientName => recipientName !== username);
-                    BlockTalk.writeDatabase(database);
-                    BlockTalk.loadUserData();
-                    BlockTalk.renderFriendsList();
-                },
-
-                cancelFriendRequest: function(targetUsername) {
-                    const username = BlockTalk.state.currentUser.username;
-                    const database = BlockTalk.readDatabase();
-                    const sender = BlockTalk.getUserProfile(database, username);
-                    const recipient = BlockTalk.getUserProfile(database, targetUsername);
-                    sender.pendingFriendRequests.outgoing = sender.pendingFriendRequests.outgoing
-                        .filter(recipientName => recipientName !== targetUsername);
-                    recipient.pendingFriendRequests.incoming = recipient.pendingFriendRequests.incoming
-                        .filter(requesterName => requesterName !== username);
-                    BlockTalk.writeDatabase(database);
-                    BlockTalk.loadUserData();
-                    BlockTalk.renderFriendsList();
-                },
-
-                cancelRequest: function(targetUsername) {
-                    this.cancelFriendRequest(targetUsername);
-                },
-
-                unfriendUser: function(friendUsername) {
-                    const username = BlockTalk.state.currentUser.username;
-                    const database = BlockTalk.readDatabase();
-                    const user = BlockTalk.getUserProfile(database, username);
-                    const friend = BlockTalk.getUserProfile(database, friendUsername);
-                    user.friends = user.friends.filter(item => item.username !== friendUsername);
-                    friend.friends = friend.friends.filter(item => item.username !== username);
-                    user.pendingFriendRequests.outgoing = user.pendingFriendRequests.outgoing
-                        .filter(target => target !== friendUsername);
-                    friend.pendingFriendRequests.incoming = friend.pendingFriendRequests.incoming
-                        .filter(target => target !== username);
-                    if (BlockTalk.state.currentConversation === friendUsername) {
-                        BlockTalk.state.currentConversation = null;
-                    }
-                    BlockTalk.writeDatabase(database);
-                    BlockTalk.loadUserData();
-                    BlockTalk.renderFriendsList();
-                    BlockTalk.renderDMList();
-                    BlockTalk.renderChatArea();
-                },
-
-                removeFriend: function(friendUsername) {
-                    this.unfriendUser(friendUsername);
-                },
-
-                blockUser: function(targetUsername) {
-                    const username = BlockTalk.state.currentUser.username;
-                    const database = BlockTalk.readDatabase();
-                    const user = BlockTalk.getUserProfile(database, username);
-                    const target = BlockTalk.getUserProfile(database, targetUsername);
-                    if (!user.blockedUsers.includes(targetUsername)) user.blockedUsers.push(targetUsername);
-                    user.friends = user.friends.filter(friend => friend.username !== targetUsername);
-                    target.friends = target.friends.filter(friend => friend.username !== username);
-                    user.pendingFriendRequests.incoming = user.pendingFriendRequests.incoming
-                        .filter(requester => requester !== targetUsername);
-                    user.pendingFriendRequests.outgoing = user.pendingFriendRequests.outgoing
-                        .filter(recipient => recipient !== targetUsername);
-                    target.pendingFriendRequests.incoming = target.pendingFriendRequests.incoming
-                        .filter(requester => requester !== username);
-                    target.pendingFriendRequests.outgoing = target.pendingFriendRequests.outgoing
-                        .filter(recipient => recipient !== username);
-
-                    Object.entries(database.calls).forEach(([callId, call]) => {
-                        if (call && [call.caller, call.recipient].includes(username) &&
-                            [call.caller, call.recipient].includes(targetUsername)) {
-                            call.status = 'ended';
-                            call.endedAt = Date.now();
-                            user.incomingCalls = user.incomingCalls.filter(id => id !== callId);
-                            target.incomingCalls = target.incomingCalls.filter(id => id !== callId);
-                            if (user.activeCallId === callId) user.activeCallId = null;
-                            if (target.activeCallId === callId) target.activeCallId = null;
+                runAction: async function(action, targetUsername) {
+                    try {
+                        await BlockTalk.apiRequest(`/api/friends/${action}`, {
+                            method: 'POST',
+                            body: JSON.stringify({ username: targetUsername })
+                        });
+                        await BlockTalk.refreshAndRender();
+                        if (action === 'request') document.getElementById('addFriendInput').value = '';
+                        if (action === 'accept') BlockTalk.selectConversation(targetUsername);
+                        if (['unfriend', 'block'].includes(action) &&
+                            BlockTalk.state.currentConversation === targetUsername) {
+                            BlockTalk.state.currentConversation = null;
+                            BlockTalk.renderChatArea();
                         }
-                    });
-
-                    if (BlockTalk.state.currentConversation === targetUsername) {
-                        BlockTalk.state.currentConversation = null;
+                    } catch (error) {
+                        alert(error.message);
                     }
-                    BlockTalk.writeDatabase(database);
-                    BlockTalk.loadUserData();
-                    BlockTalk.renderFriendsList();
-                    BlockTalk.renderDMList();
-                    BlockTalk.renderChatArea();
+                },
+                sendRequest: function(targetUsername) {
+                    return this.runAction('request', targetUsername.trim());
+                },
+                acceptRequest: function(username) {
+                    return this.runAction('accept', username);
+                },
+                declineRequest: function(username) {
+                    return this.runAction('decline', username);
+                },
+                cancelFriendRequest: function(username) {
+                    return this.runAction('cancel', username);
+                },
+                cancelRequest: function(username) {
+                    return this.cancelFriendRequest(username);
+                },
+                unfriendUser: function(username) {
+                    return this.runAction('unfriend', username);
+                },
+                removeFriend: function(username) {
+                    return this.unfriendUser(username);
+                },
+                blockUser: function(username) {
+                    return this.runAction('block', username);
                 }
             },
 
             // ===== REAL-TIME CHAT MODULE =====
             chat: {
-                sendMessage: function(content) {
-                    if (!content.trim() || !BlockTalk.state.currentConversation) {
-                        return;
-                    }
-
-                    const senderUsername = BlockTalk.state.currentUser.username;
+                sendMessage: async function(content) {
                     const recipientUsername = BlockTalk.state.currentConversation;
-                    const database = BlockTalk.readDatabase();
-                    const sender = BlockTalk.getUserProfile(database, senderUsername);
-                    const recipient = BlockTalk.getUserProfile(database, recipientUsername);
-                    if (!sender.friends.some(friend => friend.username === recipientUsername) ||
-                        sender.blockedUsers.includes(recipientUsername) ||
-                        recipient.blockedUsers.includes(senderUsername)) return;
-
-                    const message = {
-                        id: Date.now().toString(),
-                        sender: senderUsername,
-                        content: content.trim(),
-                        timestamp: Date.now(),
-                        status: 'sent' // 'sent', 'delivered', 'read'
-                    };
-
-                    sender.messages[recipientUsername] = sender.messages[recipientUsername] || [];
-                    recipient.messages[senderUsername] = recipient.messages[senderUsername] || [];
-                    sender.messages[recipientUsername].push(message);
-                    recipient.messages[senderUsername].push(message);
-                    BlockTalk.writeDatabase(database);
-                    BlockTalk.loadUserData();
-                    BlockTalk.renderMessages();
-                    BlockTalk.renderDMList();
-                    document.getElementById('messageInput').value = '';
-                    BlockTalk.clearTypingIndicator();
+                    if (!content.trim() || !recipientUsername) return;
+                    try {
+                        await BlockTalk.apiRequest('/api/messages', {
+                            method: 'POST',
+                            body: JSON.stringify({ username: recipientUsername, content })
+                        });
+                        document.getElementById('messageInput').value = '';
+                        await BlockTalk.refreshAndRender();
+                        BlockTalk.clearTypingIndicator();
+                    } catch (error) {
+                        alert(error.message);
+                    }
                 },
 
-                markAsRead: function(friendUsername) {
-                    // [API CALL] Mark messages as read
-                    // POST /api/messages/mark-read
-                    // Body: { from, to, messageIds }
-
-                    const username = BlockTalk.state.currentUser.username;
-                    const database = BlockTalk.readDatabase();
-                    const reader = BlockTalk.getUserProfile(database, username);
-                    const sender = BlockTalk.getUserProfile(database, friendUsername);
-                    const readIds = new Set((reader.messages[friendUsername] || [])
-                        .filter(message => message.sender === friendUsername)
-                        .map(message => message.id));
-
-                    (reader.messages[friendUsername] || []).forEach(message => {
-                        if (readIds.has(message.id)) message.status = 'read';
-                    });
-                    (sender.messages[username] || []).forEach(message => {
-                        if (readIds.has(message.id)) message.status = 'read';
-                    });
-
-                    BlockTalk.writeDatabase(database);
-                    BlockTalk.loadUserData();
-                    BlockTalk.renderMessages();
-                    BlockTalk.renderDMList();
+                markAsRead: async function(friendUsername) {
+                    try {
+                        await BlockTalk.apiRequest('/api/messages/read', {
+                            method: 'POST',
+                            body: JSON.stringify({ username: friendUsername })
+                        });
+                        await BlockTalk.refreshAndRender();
+                    } catch (error) {
+                        console.error('Could not mark messages as read:', error);
+                    }
                 },
 
                 handleTyping: function() {
@@ -1737,11 +1531,15 @@
                 }
             },
 
-            logout: function() {
-                // [API CALL] Logout endpoint
-                // POST /api/auth/logout
-
+            logout: async function() {
+                try {
+                    await this.apiRequest('/api/auth/logout', { method: 'POST' });
+                } catch (error) {
+                    console.error('Could not invalidate the server session:', error);
+                }
                 localStorage.removeItem('blocktalk_session');
+                this.sessionToken = null;
+                this.database = { profiles: {}, calls: {} };
                 this.state = {
                     isAuthenticated: false,
                     currentUser: null,
@@ -1753,9 +1551,9 @@
                     onlineUsers: new Set(),
                     typingUsers: {}
                 };
+                this.showAuth();
                 this.auth.isSignUpMode = true;
                 document.getElementById('authForm').reset();
-                this.renderUI();
             }
         };
 
@@ -1822,42 +1620,6 @@
         // ===== APPLICATION BOOTSTRAP =====
         document.addEventListener('DOMContentLoaded', () => {
             BlockTalk.init();
-
-            // Simulate receiving online status updates (would come from WebSocket in production)
-            // [API CALL] WebSocket connection for real-time updates
-            // ws://server/api/realtime
-            setInterval(() => {
-                // Simulate random online status updates
-                if (BlockTalk.state.isAuthenticated && BlockTalk.state.friends.length > 0) {
-                    const randomFriend = BlockTalk.state.friends[Math.floor(Math.random() * BlockTalk.state.friends.length)];
-                    if (Math.random() > 0.7) {
-                        if (BlockTalk.state.onlineUsers.has(randomFriend.username)) {
-                            BlockTalk.state.onlineUsers.delete(randomFriend.username);
-                        } else {
-                            BlockTalk.state.onlineUsers.add(randomFriend.username);
-                        }
-                        BlockTalk.renderDMList();
-                        if (BlockTalk.state.currentConversation === randomFriend.username) {
-                            BlockTalk.renderChatArea();
-                        }
-                    }
-                }
-            }, 8000);
-
-            // Simulate receiving typing indicators (would come from WebSocket)
-            setInterval(() => {
-                if (BlockTalk.state.isAuthenticated && BlockTalk.state.currentConversation) {
-                    if (Math.random() > 0.85) {
-                        BlockTalk.state.typingUsers[BlockTalk.state.currentConversation] = true;
-                        BlockTalk.renderMessages();
-                        setTimeout(() => {
-                            delete BlockTalk.state.typingUsers[BlockTalk.state.currentConversation];
-                            BlockTalk.renderMessages();
-                        }, 2000 + Math.random() * 2000);
-                    }
-                }
-            }, 5000);
-
         });
     </script>
     <script src="/socket.io/socket.io.js"></script>

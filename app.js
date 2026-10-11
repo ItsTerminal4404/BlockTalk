@@ -59,6 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('auth-email').placeholder = isSignUp ? 'Enter your email' : 'Enter your account email';
         document.getElementById('authPassword').placeholder = isSignUp ? 'Create a password' : 'Enter your password';
         document.getElementById('authConfirmPassword').placeholder = 'Confirm password';
+        document.getElementById('auth-email').required = isSignUp;
         document.getElementById('authConfirmPassword').required = isSignUp;
     }
 
@@ -68,28 +69,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     updateAuthCopy();
 
-    window.addEventListener('storage', event => {
-        if (event.key !== app.databaseKey || !app.state.currentUser) return;
-
-        const previousFriends = new Set(app.state.friends.map(friend => friend.username));
-        const selectedConversation = app.state.currentConversation;
-        app.loadUserData();
-        syncUserPreferences();
-        app.renderFriendsList();
-        app.renderDMList();
-
-        if (selectedConversation && !app.state.friends.some(friend => friend.username === selectedConversation)) {
-            app.state.currentConversation = null;
-        }
-
-        const newlyAddedFriend = app.state.friends.find(friend => !previousFriends.has(friend.username));
-        if (!selectedConversation && newlyAddedFriend) {
-            app.selectConversation(newlyAddedFriend.username);
-        } else {
-            app.renderChatArea();
-        }
-        syncCallView();
-    });
     window.addEventListener('blocktalk:database-change', () => {
         if (!app.state.currentUser) return;
         syncCallView();
@@ -165,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
         settingsButton.focus();
     }
 
-    function saveSettings() {
+    async function saveSettings() {
         if (!app.state.currentUser) return;
 
         const rawUrl = settingsPfpUrl.value.trim();
@@ -181,14 +160,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        const database = app.readDatabase();
-        const profile = app.getUserProfile(database, app.state.currentUser.username);
-        profile.email = app.state.currentUser.email || profile.email;
-        profile.profilePictureUrl = profilePictureUrl;
-        profile.theme = applyTheme(settingsTheme.value);
-        app.writeDatabase(database);
-        setProfilePicture(profilePictureUrl, app.state.currentUser.username);
-        settingsStatus.textContent = 'Settings saved.';
+        try {
+            const theme = applyTheme(settingsTheme.value);
+            await app.apiRequest('/api/profile', {
+                method: 'PATCH',
+                body: JSON.stringify({ profilePictureUrl, theme })
+            });
+            await app.refreshAndRender();
+            syncUserPreferences();
+            settingsStatus.textContent = 'Settings saved.';
+        } catch (error) {
+            settingsStatus.textContent = error.message;
+        }
     }
 
     settingsButton.addEventListener('click', openSettings);
@@ -233,7 +216,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function ensureSignalingConnection() {
         const username = app.state.currentUser?.username;
-        if (!username || typeof window.io !== 'function') return;
+        if (!username || !app.sessionToken || typeof window.io !== 'function') return;
         if (!socket) {
             const signalingURL = window.BLOCKTALK_SIGNALING_URL || window.location.origin;
             socket = window.io(signalingURL, { autoConnect: true });
@@ -259,7 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function registerSocketUser(username) {
         if (!socket?.connected || !username || registeredUser === username) return;
-        socket.emit('register-user', { userId: username }, response => {
+        socket.emit('register-user', { token: app.sessionToken }, response => {
             if (!response?.ok) {
                 callAlert.textContent = 'TERMINAL: Signaling registration failed. Refresh and sign in again.';
                 return;
@@ -283,6 +266,15 @@ document.addEventListener('DOMContentLoaded', () => {
         socket.on('connect', () => {
             registeredUser = null;
             registerSocketUser(app.state.currentUser?.username);
+        });
+        socket.on('data-updated', async () => {
+            if (!app.state.isAuthenticated) return;
+            try {
+                await app.refreshAndRender();
+                syncUserPreferences();
+            } catch (error) {
+                callAlert.textContent = `TERMINAL: Could not refresh chat data. ${error.message}`;
+            }
         });
         socket.on('disconnect', () => {
             registeredUser = null;
@@ -805,5 +797,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return result;
     };
     syncCallView();
+    window.addEventListener('blocktalk:authenticated', () => {
+        syncUserPreferences();
+        ensureSignalingConnection();
+    });
     if (app.state.isAuthenticated) ensureSignalingConnection();
 });
