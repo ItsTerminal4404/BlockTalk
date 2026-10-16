@@ -742,7 +742,7 @@
 </head>
 <body>
     <!-- ===== MAIN APPLICATION ===== -->
-    <div class="app-container hidden" id="appContainer">
+    <div class="app-container" id="appContainer">
         <!-- LEFT SIDEBAR -->
         <div class="sidebar">
             <div class="sidebar-brand">
@@ -752,10 +752,10 @@
                 <div class="user-info">
                     <div class="user-identity">
                         <div class="my-pfp" id="my-pfp" role="button" tabindex="0" aria-label="Open your profile">--</div>
-                        <div class="user-label" id="userLabel">Signing in…</div>
+                        <div class="user-label" id="userLabel">Connecting to BlockTalk…</div>
                     </div>
                 </div>
-                <div class="user-status">Connected to BlockTalk</div>
+                <div class="user-status" id="connectionStatus">Checking your session…</div>
             </div>
 
             <div class="nav-tabs">
@@ -1590,13 +1590,22 @@
                     };
                     if (completeAuthHandoff()) return;
                     if (typeof user.recall === 'function') {
+                        const recallTimeout = setTimeout(() => {
+                            if (this.state.isAuthenticated) return;
+                            sessionStorage.removeItem('blocktalk:authenticated');
+                            console.error('No authenticated Gun session was restored.');
+                            window.location.replace('signin.html');
+                        }, 20000);
                         user.recall({}, () => {
                             const account = user.is;
                             if (this.state.isAuthenticated) return;
                             if (!account?.alias || !account?.pub) {
-                                window.location.replace('home.html');
+                                clearTimeout(recallTimeout);
+                                sessionStorage.removeItem('blocktalk:authenticated');
+                                window.location.replace('signin.html');
                                 return;
                             }
+                            clearTimeout(recallTimeout);
                             this.auth.isSignUpMode = false;
                             this.activateGunAccount(account.alias).catch(error => {
                                 console.error('Could not restore the BlockTalk session:', error);
