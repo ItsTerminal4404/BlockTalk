@@ -1610,11 +1610,38 @@
                 try {
                     this.initializeGun();
                     const user = this.gunUser;
+                    const completeAuthHandoff = () => {
+                        let handoff;
+                        try {
+                            handoff = JSON.parse(sessionStorage.getItem('blocktalk:auth-handoff') || 'null');
+                        } catch (error) {
+                            console.error('Could not read the authentication handoff:', error);
+                            sessionStorage.removeItem('blocktalk:auth-handoff');
+                            return false;
+                        }
+                        if (!handoff?.username || !handoff?.accessKey) return false;
+                        user.auth(handoff.username, handoff.accessKey, acknowledgement => {
+                            if (acknowledgement?.err) {
+                                console.error('Could not complete the authentication handoff:', acknowledgement.err);
+                                sessionStorage.removeItem('blocktalk:auth-handoff');
+                                window.location.replace('home.html');
+                                return;
+                            }
+                            sessionStorage.removeItem('blocktalk:auth-handoff');
+                            this.activateGunAccount(handoff.username, acknowledgement)
+                                .catch(error => {
+                                    console.error('Could not activate the authenticated account:', error);
+                                    window.location.replace('home.html');
+                                });
+                        });
+                        return true;
+                    };
                     if (typeof user.recall === 'function') {
                         user.recall({}, () => {
                             const account = user.is;
                             if (this.state.isAuthenticated) return;
                             if (!account?.alias || !account?.pub) {
+                                if (completeAuthHandoff()) return;
                                 window.location.replace('home.html');
                                 return;
                             }

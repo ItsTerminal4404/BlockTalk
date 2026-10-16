@@ -71,6 +71,10 @@
         submitButton.textContent = isSignUp ? 'Creating account…' : 'Signing in…';
         try {
             const key = await authenticate(username, accessKey);
+            sessionStorage.setItem('blocktalk:auth-handoff', JSON.stringify({
+                username,
+                accessKey: key
+            }));
             if (isSignUp) {
                 generatedKey.value = key;
                 keyPanel.classList.add('show');
