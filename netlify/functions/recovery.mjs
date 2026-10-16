@@ -135,6 +135,17 @@ async function handleCompleteReset(body) {
     return response(200, { ok: true, pair, username: envelope.username });
 }
 
+async function handleAuthenticate(body) {
+    const username = normalizeUsername(body.username);
+    const recoveryKey = normalizeRecoveryKey(body.recoveryKey);
+    const envelope = await getJSON(`account:${username}`);
+    if (!envelope || envelope.recoveryKeyHash !== hashRecoveryKey(recoveryKey)) {
+        throw new Error('That access key is invalid.');
+    }
+    const pair = decryptJSON(envelope.encryptedPair, recoveryKey);
+    return response(200, { ok: true, pair, username: envelope.username });
+}
+
 export default async function recovery(request) {
     if (request.method !== 'POST') return response(405, { error: 'Use POST for recovery requests.' });
     let body;
@@ -150,6 +161,7 @@ export default async function recovery(request) {
     }
     try {
         if (body.action === 'enroll') return await handleEnroll(body);
+        if (body.action === 'authenticate') return await handleAuthenticate(body);
         if (body.action === 'complete-reset') return await handleCompleteReset(body);
         return response(400, { error: 'Unsupported recovery action.' });
     } catch (error) {

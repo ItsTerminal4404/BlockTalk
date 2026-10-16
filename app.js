@@ -2159,21 +2159,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateAuthCopy() {
         const isSignUp = app.auth.isSignUpMode;
-        const mode = isSignUp ? 'Sign Up' : 'Sign In';
+        const mode = isSignUp ? 'Claim Username' : 'Sign In';
         document.getElementById('authFormTitle').textContent = mode;
         document.getElementById('authSubmitBtn').textContent = mode;
         document.getElementById('toggleText').textContent = isSignUp
             ? 'Already have an account? '
             : "Don't have an account? ";
         authToggle.textContent = isSignUp ? 'Sign In' : 'Sign Up';
-        document.getElementById('usernameLabel').textContent = `${mode} Username`;
-        document.getElementById('passwordLabel').textContent = `${mode} Password`;
+        document.getElementById('usernameLabel').textContent = 'Username';
+        document.getElementById('passwordLabel').textContent = 'Access key';
         document.getElementById('confirmPasswordLabel').textContent = `${mode} Confirm Password`;
-        document.getElementById('authUsername').placeholder = isSignUp ? 'Choose a username' : 'Enter your username';
-        document.getElementById('authPassword').placeholder = isSignUp ? 'Create a strong password' : 'Enter your password';
+        document.getElementById('authUsername').placeholder = isSignUp ? 'Choose an available username' : 'Enter your username';
+        document.getElementById('authPassword').placeholder = isSignUp ? 'Leave blank to generate your access key' : 'Paste your 32-character access key';
         document.getElementById('authConfirmPassword').placeholder = 'Confirm password';
-        document.getElementById('authConfirmPassword').required = isSignUp;
-        document.getElementById('authPassword').autocomplete = isSignUp ? 'new-password' : 'current-password';
+        document.getElementById('authConfirmPassword').required = false;
+        document.getElementById('authPassword').required = !isSignUp;
+        document.getElementById('confirmPasswordGroup').style.display = 'none';
+        document.getElementById('forgotPasswordButton').classList.add('hidden');
     }
 
     authToggle.addEventListener('click', () => {

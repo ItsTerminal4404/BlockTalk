@@ -3,7 +3,7 @@
 The MIT License for this project is in [LICENSE](./LICENSE).
 
 BlockTalk is a static browser chat app. Gun SEA handles account registration
-and sign-in; account profiles, friend requests, presence, encrypted direct
+and key-based sign-in; account profiles, friend requests, presence, encrypted direct
 messages, invite-code group servers, and encrypted WebRTC call signaling
 synchronize through a public GunDB relay. Chat uses static browser files;
 recovery keys additionally use a Netlify Function and Netlify Blobs.
@@ -32,11 +32,10 @@ current page and is not sent to Gun or shared with other users.
 
 Gun identities are separate from the former Node-server accounts. Existing
 server accounts are not migrated; users must create a new Gun account. Sign-up
-and sign-in do not require an email address. New accounts receive a random
-32-character recovery key; save it somewhere safe because it is the only way
-to reset a forgotten password. Signed-in users can create or replace a key in
-Settings. Users can also change their password from Settings by entering the
-current password and confirming a new one. Accounts are associated with the
+and sign-in do not require an email address or password. New accounts receive a
+random 32-character access key; save it somewhere safe because it is the only
+way to sign in. Existing accounts with an enrolled key can also sign in with
+that key. Accounts are associated with the
 configured relay's Gun alias directory; changing or losing access to that
 relay can affect account discovery and availability.
 

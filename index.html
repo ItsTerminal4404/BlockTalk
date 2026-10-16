@@ -750,15 +750,15 @@
                 <p class="auth-subtitle" id="authModeSubtitle">Sign up to get started</p>
             </div>
             <form id="authForm">
-                <h2 class="auth-form-title" id="authFormTitle">Sign Up</h2>
+                <h2 class="auth-form-title" id="authFormTitle">Claim a username</h2>
                 <div class="form-group">
-                    <label class="form-label" for="authUsername" id="usernameLabel">Sign Up Username</label>
-                    <input type="text" class="form-input" id="authUsername" placeholder="Choose a username" minlength="3" maxlength="32" required>
+                    <label class="form-label" for="authUsername" id="usernameLabel">Username</label>
+                    <input type="text" class="form-input" id="authUsername" placeholder="Choose or enter your username" minlength="3" maxlength="32" required>
                     <div class="form-error" id="usernameError"></div>
                 </div>
                 <div class="form-group">
-                    <label class="form-label" for="authPassword" id="passwordLabel">Sign Up Password</label>
-                    <input type="password" class="form-input" id="authPassword" placeholder="Create a strong password" autocomplete="current-password" required>
+                    <label class="form-label" for="authPassword" id="passwordLabel">Access key</label>
+                    <input type="text" class="form-input" id="authPassword" placeholder="Paste your 32-character access key" autocomplete="off" spellcheck="false" maxlength="32">
                     <div class="form-error" id="passwordError"></div>
                 </div>
                 <div class="form-group" id="confirmPasswordGroup">
@@ -769,16 +769,16 @@
                 <aside class="auth-security-notice" aria-label="Security notice">
                     <strong>⚠️ SECURITY NOTICE</strong>
                     <ul>
-                        <li><strong>Protect your accounts:</strong> Never use your actual ArchMC, Discord, or Google passwords on this app. Always create a completely unique password for BlockTalk.</li>
+                        <li><strong>Protect your account:</strong> Your generated access key is the only credential. Never share it or store it in a public place.</li>
                         <li><strong>Check your URL bar:</strong> The official web address for this application is <code>https://webblocktalk.netlify.app</code>. If you are on a Vercel, Cloudflare (<code>pages.dev</code>), or any other domain, it is not this official site. Do not enter your credentials there.</li>
                     </ul>
                 </aside>
                 <p class="auth-account-warning">
-                    Keep your password and recovery key safe. The recovery key is shown only when you create it.
+                    New usernames receive a one-time 32-character access key. Save it securely; it is the only sign-in credential.
                 </p>
                 <section class="auth-recovery-panel hidden" id="newRecoveryKeyPanel" aria-labelledby="newRecoveryKeyTitle">
-                    <h2 class="auth-form-title" id="newRecoveryKeyTitle">Save your recovery key</h2>
-                    <p class="settings-help">This 32-character key is the only way to recover your account if you forget your password. Store it somewhere safe; it cannot be retrieved later.</p>
+                    <h2 class="auth-form-title" id="newRecoveryKeyTitle">Save your access key</h2>
+                    <p class="settings-help">This 32-character key is the only way to sign in to your account. Store it somewhere safe; it cannot be retrieved later.</p>
                     <div class="auth-recovery-row">
                         <input type="text" class="form-input" id="newRecoveryKey" readonly spellcheck="false" autocomplete="off">
                         <button type="button" class="auth-recovery-button" id="copyRecoveryKey">Copy</button>
@@ -790,19 +790,15 @@
             </form>
             <section class="auth-recovery-panel hidden" id="emailRecoveryPanel" aria-labelledby="emailRecoveryTitle">
                 <h2 class="auth-form-title" id="emailRecoveryTitle">Recover your account</h2>
-                <p class="settings-help">Enter your username and 32-character recovery key to reset your password.</p>
+                <p class="settings-help">Enter your username and 32-character access key to recover your account.</p>
                 <label class="form-label" for="recoveryUsername">Username</label>
                 <input type="text" class="form-input" id="recoveryUsername" maxlength="32" autocomplete="username" placeholder="Your BlockTalk username">
                 <label class="form-label" for="accountRecoveryKey">Recovery key</label>
                 <input type="text" class="form-input" id="accountRecoveryKey" maxlength="32" autocomplete="off" spellcheck="false" placeholder="32-character recovery key">
-                <label class="form-label" for="recoveryNewPassword">New password</label>
-                <input type="password" class="form-input" id="recoveryNewPassword" autocomplete="new-password" minlength="12">
-                <label class="form-label" for="recoveryConfirmPassword">Confirm new password</label>
-                <input type="password" class="form-input" id="recoveryConfirmPassword" autocomplete="new-password" minlength="12">
                 <p class="form-error" id="accountRecoveryStatus" role="status" aria-live="polite"></p>
                 <div class="auth-recovery-actions">
                     <button type="button" class="settings-close-button" id="cancelAccountRecovery">Back to sign in</button>
-                    <button type="button" class="auth-button" id="completeAccountRecovery">Reset password</button>
+                    <button type="button" class="auth-button" id="completeAccountRecovery">Sign in with key</button>
                 </div>
             </section>
             <div class="auth-toggle">
@@ -1570,11 +1566,44 @@
                     return this.postRecoveryAction('enroll', { recoveryKey, payload, signature, pair });
                 },
 
+                authenticateWithKey: async function(username, accessKey) {
+                    BlockTalk.initializeGun();
+                    try {
+                        const result = await this.postRecoveryAction('authenticate', {
+                            username,
+                            recoveryKey: accessKey
+                        });
+                        const registeredPub = await BlockTalk.lookupUserPub(result.username);
+                        if (!registeredPub || registeredPub !== result.pair?.pub) {
+                            throw new Error('That access key does not match this username.');
+                        }
+                        const user = BlockTalk.gun.user();
+                        BlockTalk.gunUser = user;
+                        return await new Promise((resolve, reject) => {
+                            const timeout = setTimeout(() => reject(new Error('Key sign-in timed out. Check your connection and try again.')), 20000);
+                            user.auth(result.pair, acknowledgement => {
+                                clearTimeout(timeout);
+                                if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
+                                else resolve(acknowledgement);
+                            });
+                        });
+                    } catch (recoveryError) {
+                        const user = BlockTalk.gun.user();
+                        BlockTalk.gunUser = user;
+                        return new Promise((resolve, reject) => {
+                            const timeout = setTimeout(() => reject(recoveryError), 20000);
+                            user.auth(username, accessKey, acknowledgement => {
+                                clearTimeout(timeout);
+                                if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
+                                else resolve(acknowledgement);
+                            });
+                        });
+                    }
+                },
+
                 requestPasswordRecovery: async function() {
                     const username = document.getElementById('recoveryUsername').value.trim();
                     const recoveryKey = document.getElementById('accountRecoveryKey').value.trim();
-                    const newPassword = document.getElementById('recoveryNewPassword').value;
-                    const confirmPassword = document.getElementById('recoveryConfirmPassword').value;
                     const status = document.getElementById('accountRecoveryStatus');
                     status.textContent = '';
                     if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username)) {
@@ -1585,46 +1614,13 @@
                         status.textContent = 'Enter your 32-character recovery key.';
                         return;
                     }
-                    if (newPassword.length < 12) {
-                        status.textContent = 'Use a new password with at least 12 characters.';
-                        return;
-                    }
-                    if (newPassword !== confirmPassword) {
-                        status.textContent = 'The new passwords do not match.';
-                        return;
-                    }
                     const button = document.getElementById('completeAccountRecovery');
                     button.disabled = true;
                     try {
-                        const result = await this.postRecoveryAction('complete-reset', {
-                            username,
-                            recoveryKey,
-                            newPassword
-                        });
-                        const canonicalUsername = result.username;
-                        BlockTalk.initializeGun();
-                        const registeredPub = await BlockTalk.lookupUserPub(canonicalUsername);
-                        if (!registeredPub || registeredPub !== result.pair?.pub) {
-                            throw new Error('The recovery key does not match this BlockTalk username.');
-                        }
-                        const user = BlockTalk.gun.user();
-                        BlockTalk.gunUser = user;
-                        await new Promise((resolve, reject) => {
-                            const timeout = setTimeout(
-                                () => reject(new Error('Password reset timed out. Request a new code and try again.')),
-                                20000
-                            );
-                            user.auth(result.pair, acknowledgement => {
-                                clearTimeout(timeout);
-                                if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
-                                else resolve(acknowledgement);
-                            }, { change: newPassword });
-                        });
-                        await BlockTalk.activateGunAccount(canonicalUsername, user.is || { pub: result.pair.pub });
-                        document.getElementById('recoveryNewPassword').value = '';
-                        document.getElementById('recoveryConfirmPassword').value = '';
+                        const result = await this.authenticateWithKey(username, recoveryKey);
+                        await BlockTalk.activateGunAccount(result?.alias || username, BlockTalk.gunUser.is || {});
                         document.getElementById('accountRecoveryKey').value = '';
-                        status.textContent = 'Password reset and account recovered.';
+                        status.textContent = 'Account recovered.';
                     } catch (error) {
                         BlockTalk.gunUser?.leave?.();
                         BlockTalk.gunUser = null;
@@ -1637,16 +1633,18 @@
                 toggleMode: function() {
                     this.isSignUpMode = !this.isSignUpMode;
                     document.getElementById('authModeSubtitle').textContent = 
-                        this.isSignUpMode ? 'Sign up to get started' : 'Sign in to continue';
+                        this.isSignUpMode ? 'Claim an available username' : 'Sign in with your access key';
                     document.getElementById('authSubmitBtn').textContent = 
-                        this.isSignUpMode ? 'Sign Up' : 'Sign In';
+                        this.isSignUpMode ? 'Claim Username' : 'Sign In';
                     document.getElementById('toggleText').textContent = 
                         this.isSignUpMode ? 'Already have an account? ' : "Don't have an account? ";
                     document.getElementById('confirmPasswordGroup').style.display = 
                         this.isSignUpMode ? 'block' : 'none';
-                    document.getElementById('authConfirmPassword').required = this.isSignUpMode;
-                    document.getElementById('authPassword').autocomplete =
-                        this.isSignUpMode ? 'new-password' : 'current-password';
+                    document.getElementById('authConfirmPassword').required = false;
+                    document.getElementById('authPassword').placeholder = this.isSignUpMode
+                        ? 'Leave blank to generate your access key'
+                        : 'Paste your 32-character access key';
+                    document.getElementById('authPassword').required = !this.isSignUpMode;
                     document.getElementById('forgotPasswordButton').classList.toggle('hidden', this.isSignUpMode);
                 },
 
@@ -1666,15 +1664,8 @@
                         return;
                     }
 
-                    if (!password || password.length < (this.isSignUpMode ? 12 : 1)) {
-                        this.showError('passwordError', this.isSignUpMode
-                            ? 'Use a password with at least 12 characters.'
-                            : 'Enter your password.');
-                        return;
-                    }
-
-                    if (this.isSignUpMode && password !== confirmPassword) {
-                        this.showError('confirmError', 'Passwords do not match');
+                    if (!this.isSignUpMode && !/^[a-zA-Z0-9]{32}$/.test(password)) {
+                        this.showError('passwordError', 'Enter your 32-character access key.');
                         return;
                     }
                     this.isSubmitting = true;
@@ -1691,7 +1682,11 @@
                         }
                         BlockTalk.gunUser = user;
                         const isNewAccount = this.isSignUpMode;
-                        const recoveryKey = isNewAccount ? BlockTalk.generateRecoveryKey() : '';
+                        const recoveryKey = isNewAccount ? BlockTalk.generateRecoveryKey() : password;
+                        if (isNewAccount && await BlockTalk.lookupUserPub(username)) {
+                            throw new Error('That username is already in use. Switch to Sign In and enter its access key.');
+                        }
+                        const credential = isNewAccount ? recoveryKey : password;
                         const existingSession = user.is;
                         if (existingSession?.pub) {
                             if (existingSession.alias === username) {
@@ -1705,22 +1700,22 @@
                         }
                         if (isNewAccount) {
                             await new Promise((resolve, reject) => {
-                                //notes Gun SEA derives the account cryptographic keypair from the username and password during account creation.
+                                // The generated access key is also the Gun credential for newly claimed accounts.
                                 const timeout = setTimeout(() => reject(new Error('Gun account creation timed out. Check the relay connection and try again.')), 20000);
-                                user.create(username, password, acknowledgement => {
+                                user.create(username, credential, acknowledgement => {
                                     clearTimeout(timeout);
                                     if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
                                     else resolve(acknowledgement);
                                 });
                             });
                         }
-                        const authentication = await new Promise((resolve, reject) => {
+                        const authentication = isNewAccount ? await new Promise((resolve, reject) => {
                             const timeout = setTimeout(() => reject(new Error('Gun sign-in timed out. Check the relay connection and try again.')), 20000);
-                            user.auth(username, password, acknowledgement => {
+                            user.auth(username, credential, acknowledgement => {
                                 clearTimeout(timeout);
                                 if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
                                 else resolve(acknowledgement);
-                            });
+                            }) : await this.authenticateWithKey(username, credential);
                         });
                         let recoveryEnrollmentError = null;
                         if (isNewAccount) {
@@ -1736,7 +1731,7 @@
                             document.getElementById('authForm').reset();
                             document.getElementById('newRecoveryKey').value = recoveryKey;
                             document.getElementById('newRecoveryKeyPanel').classList.remove('hidden');
-                            window.alert(`Your BlockTalk recovery key is:\n\n${recoveryKey}\n\nSave it somewhere safe. It cannot be retrieved later.`);
+                            window.alert(`Your BlockTalk access key is:\n\n${recoveryKey}\n\nSave it somewhere safe. It cannot be recovered if lost.`);
                             if (recoveryEnrollmentError) {
                                 document.getElementById('callAlert').textContent =
                                     `Account created, but recovery key setup could not be completed. Open Settings to retry. ${recoveryEnrollmentError.message}`;
@@ -1754,7 +1749,7 @@
                         this.isSubmitting = false;
                         submitButton.disabled = false;
                         toggleButton.disabled = false;
-                        submitButton.textContent = this.isSignUpMode ? 'Sign Up' : 'Sign In';
+                        submitButton.textContent = this.isSignUpMode ? 'Claim Username' : 'Sign In';
                     }
                 },
 
