@@ -756,14 +756,14 @@
                     <input type="text" class="form-input" id="authUsername" placeholder="Choose or enter your username" minlength="3" maxlength="32" required>
                     <div class="form-error" id="usernameError"></div>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="authPasswordGroup">
                     <label class="form-label" for="authPassword" id="passwordLabel">Access key</label>
                     <input type="text" class="form-input" id="authPassword" placeholder="Paste your 32-character access key" autocomplete="off" spellcheck="false" maxlength="32">
                     <div class="form-error" id="passwordError"></div>
                 </div>
                 <div class="form-group" id="confirmPasswordGroup">
-                    <label class="form-label" for="authConfirmPassword" id="confirmPasswordLabel">Sign Up Confirm Password</label>
-                    <input type="password" class="form-input" id="authConfirmPassword" placeholder="Confirm password" autocomplete="new-password" required>
+                    <label class="form-label" for="authConfirmPassword" id="confirmPasswordLabel">Confirm access key</label>
+                    <input type="password" class="form-input" id="authConfirmPassword" placeholder="Confirm access key" autocomplete="new-password">
                     <div class="form-error" id="confirmError"></div>
                 </div>
                 <aside class="auth-security-notice" aria-label="Security notice">
@@ -1802,12 +1802,11 @@
                         this.isSignUpMode ? 'Claim Username' : 'Sign In';
                     document.getElementById('toggleText').textContent = 
                         this.isSignUpMode ? 'Already have an account? ' : "Don't have an account? ";
-                    document.getElementById('confirmPasswordGroup').style.display = 
-                        this.isSignUpMode ? 'block' : 'none';
+                    document.getElementById('authPasswordGroup').style.display =
+                        this.isSignUpMode ? 'none' : 'block';
+                    document.getElementById('confirmPasswordGroup').style.display = 'none';
                     document.getElementById('authConfirmPassword').required = false;
-                    document.getElementById('authPassword').placeholder = this.isSignUpMode
-                        ? 'Leave blank to generate your access key'
-                        : 'Paste your 32-character access key';
+                    document.getElementById('authPassword').placeholder = 'Paste your 32-character access key';
                     document.getElementById('authPassword').required = !this.isSignUpMode;
                     document.getElementById('forgotPasswordButton').classList.toggle('hidden', this.isSignUpMode);
                 },
@@ -1817,7 +1816,6 @@
                     if (this.isSubmitting) return;
                     const username = document.getElementById('authUsername').value.trim();
                     const password = document.getElementById('authPassword').value;
-                    const confirmPassword = document.getElementById('authConfirmPassword').value;
 
                     // Clear previous errors
                     this.clearErrors();
@@ -2510,7 +2508,10 @@
                 this.showAuth();
                 this.auth.isSignUpMode = true;
                 document.getElementById('authForm').reset();
-                document.getElementById('authConfirmPassword').required = true;
+                document.getElementById('authPasswordGroup').style.display = 'none';
+                document.getElementById('confirmPasswordGroup').style.display = 'none';
+                document.getElementById('authPassword').required = false;
+                document.getElementById('authConfirmPassword').required = false;
                 window.dispatchEvent(new Event('blocktalk:auth-mode-changed'));
             }
         };
