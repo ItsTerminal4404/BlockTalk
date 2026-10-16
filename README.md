@@ -10,8 +10,10 @@ synchronize through a public GunDB relay. Chat uses static browser files.
 ## Run locally or deploy
 
 Serve the repository root as static files, for example with
-`python -m http.server 8000`, then open `http://localhost:8000/home.html`. New users
-sign up at `/signup.html`; existing users sign in at `/signin.html`. Netlify,
+`python -m http.server 8000`, then open `http://localhost:8000/index.html`. The
+single-page entry point contains the welcome, sign-up, sign-in, and application
+views. New users receive an access key when they sign up; existing users sign in
+with that key. Netlify,
 GitHub Pages, Cloudflare Pages, or any other static host can serve the app.
 Installable PWA features and microphone access require HTTPS in production
 (localhost is allowed for local development).

@@ -741,8 +741,39 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div class="auth-container" id="authContainer">
+        <div class="auth-box">
+            <div class="auth-header">
+                <img class="brand-logo brand-logo-auth" src="logo.png" alt="BlockTalk logo">
+                <h1 class="auth-title">BlockTalk</h1>
+                <p class="auth-subtitle" id="authModeSubtitle">Sign up to get started</p>
+            </div>
+            <form id="authForm">
+                <h2 class="auth-form-title" id="authFormTitle">Claim a username</h2>
+                <div class="form-group">
+                    <label class="form-label" for="authUsername" id="usernameLabel">Username</label>
+                    <input type="text" class="form-input" id="authUsername" placeholder="Choose an available username" minlength="3" maxlength="32" required>
+                    <div class="form-error" id="usernameError"></div>
+                </div>
+                <div class="form-group" id="authPasswordGroup" style="display: none;">
+                    <label class="form-label" for="authPassword">Access key</label>
+                    <input type="password" class="form-input" id="authPassword" placeholder="Paste your 32-character access key" autocomplete="current-password" maxlength="32">
+                    <div class="form-error" id="passwordError"></div>
+                </div>
+                <p class="auth-account-warning" id="authAccountWarning">
+                    A 32-character access key is generated after sign-up. Save it; it is the only way to sign in.
+                </p>
+                <button type="submit" class="auth-button" id="authSubmitBtn">Sign Up</button>
+            </form>
+            <div class="auth-toggle">
+                <span id="toggleText">Already have an account? </span>
+                <button type="button" id="authToggleBtn">Sign In</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ===== MAIN APPLICATION ===== -->
-    <div class="app-container" id="appContainer">
+    <div class="app-container hidden" id="appContainer">
         <!-- LEFT SIDEBAR -->
         <div class="sidebar">
             <div class="sidebar-brand">
@@ -1526,84 +1557,36 @@
                     this.setupEventListeners();
                     this.initializeGun();
                     const user = this.gunUser;
-                    const handoffValue = sessionStorage.getItem('blocktalk:auth-handoff');
-                    const authenticatedMarker = sessionStorage.getItem('blocktalk:authenticated');
-                    if (!handoffValue && !authenticatedMarker) {
-                        window.location.replace('signin.html');
-                        return;
-                    }
-                    const completeAuthHandoff = () => {
-                        let handoff;
-                        try {
-                            handoff = JSON.parse(sessionStorage.getItem('blocktalk:auth-handoff') || 'null');
-                        } catch (error) {
-                            console.error('Could not read the authentication handoff:', error);
-                            sessionStorage.removeItem('blocktalk:auth-handoff');
-                            return false;
-                        }
-                        if (!handoff?.username || !handoff?.accessKey) return false;
-                        const timeout = setTimeout(() => {
-                            sessionStorage.removeItem('blocktalk:auth-handoff');
-                            console.error('The authentication handoff timed out.');
-                            sessionStorage.removeItem('blocktalk:authenticated');
-                            window.location.replace('signin.html');
-                        }, 20000);
-                        user.auth(handoff.username, handoff.accessKey, acknowledgement => {
-                            clearTimeout(timeout);
-                            if (acknowledgement?.err) {
-                                console.error('Could not complete the authentication handoff:', acknowledgement.err);
-                                sessionStorage.removeItem('blocktalk:auth-handoff');
-                                sessionStorage.removeItem('blocktalk:authenticated');
-                                window.location.replace('signin.html');
-                                return;
-                            }
-                            sessionStorage.removeItem('blocktalk:auth-handoff');
-                            this.activateGunAccount(handoff.username, acknowledgement)
-                                .catch(error => {
-                                    console.error('Could not activate the authenticated account:', error);
-                                    sessionStorage.removeItem('blocktalk:authenticated');
-                                    window.location.replace('signin.html');
-                                });
-                        });
-                        return true;
-                    };
-                    if (completeAuthHandoff()) return;
                     if (typeof user.recall === 'function') {
-                        const recallTimeout = setTimeout(() => {
-                            if (this.state.isAuthenticated) return;
-                            sessionStorage.removeItem('blocktalk:authenticated');
-                            console.error('No authenticated Gun session was restored.');
-                            window.location.replace('signin.html');
-                        }, 20000);
                         user.recall({}, () => {
                             const account = user.is;
                             if (this.state.isAuthenticated) return;
                             if (!account?.alias || !account?.pub) {
-                                clearTimeout(recallTimeout);
-                                sessionStorage.removeItem('blocktalk:authenticated');
-                                window.location.replace('signin.html');
+                                this.showAuth();
                                 return;
                             }
-                            clearTimeout(recallTimeout);
-                            this.auth.isSignUpMode = false;
                             this.activateGunAccount(account.alias).catch(error => {
                                 console.error('Could not restore the BlockTalk session:', error);
-                                sessionStorage.removeItem('blocktalk:authenticated');
-                                window.location.replace('signin.html');
+                                this.showAuth();
                             });
-                            window.dispatchEvent(new Event('blocktalk:auth-mode-changed'));
                         });
                     } else {
-                        window.location.replace('home.html');
+                        this.showAuth();
                     }
                 } catch (error) {
                     console.error('Could not initialize BlockTalk authentication:', error);
-                    sessionStorage.removeItem('blocktalk:authenticated');
-                    window.location.replace('signin.html');
+                    this.showAuth();
                 }
             },
 
             // ===== AUTHENTICATION MODULE =====
+            generateAccessKey: function() {
+                const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+                const values = new Uint32Array(32);
+                window.crypto.getRandomValues(values);
+                return Array.from(values, value => alphabet[value % alphabet.length]).join('');
+            },
+
             auth: {
                 isSignUpMode: true,
                 isSubmitting: false,
@@ -1632,11 +1615,8 @@
                         this.isSignUpMode ? 'Already have an account? ' : "Don't have an account? ";
                     document.getElementById('authPasswordGroup').style.display =
                         this.isSignUpMode ? 'none' : 'block';
-                    document.getElementById('confirmPasswordGroup').style.display = 'none';
-                    document.getElementById('authConfirmPassword').required = false;
                     document.getElementById('authPassword').placeholder = 'Paste your 32-character access key';
                     document.getElementById('authPassword').required = !this.isSignUpMode;
-                    document.getElementById('forgotPasswordButton').classList.toggle('hidden', this.isSignUpMode);
                 },
 
                 handleSubmit: async function(e) {
@@ -1675,7 +1655,7 @@
                         if (isNewAccount && await BlockTalk.lookupUserPub(username)) {
                             throw new Error('That username is already in use. Switch to Sign In and enter its access key.');
                         }
-                        const credential = password;
+                        const credential = isNewAccount ? BlockTalk.generateAccessKey() : password;
                         const existingSession = user.is;
                         if (existingSession?.pub) {
                             if (existingSession.alias === username) {
@@ -1698,15 +1678,23 @@
                                 });
                             });
                         }
-                        const authentication = isNewAccount ? await new Promise((resolve, reject) => {
-                            const timeout = setTimeout(() => reject(new Error('Gun sign-in timed out. Check the relay connection and try again.')), 20000);
-                            user.auth(username, credential, acknowledgement => {
-                                clearTimeout(timeout);
-                                if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
-                                else resolve(acknowledgement);
-                            }) : await this.authenticateWithKey(username, credential);
-                        });
+                        let authentication;
+                        if (isNewAccount) {
+                            authentication = await new Promise((resolve, reject) => {
+                                const timeout = setTimeout(() => reject(new Error('Gun sign-in timed out. Check the relay connection and try again.')), 20000);
+                                user.auth(username, credential, acknowledgement => {
+                                    clearTimeout(timeout);
+                                    if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
+                                    else resolve(acknowledgement);
+                                });
+                            });
+                        } else {
+                            authentication = await this.authenticateWithKey(username, credential);
+                        }
                         await BlockTalk.activateGunAccount(username, authentication, isNewAccount);
+                        if (isNewAccount) {
+                            window.alert(`Your access key is:\n\n${credential}\n\nSave it securely. It is required to sign in.`);
+                        }
                     } catch (error) {
                         const message = error?.message || String(error);
                         const target = /already|alias|username|exist/i.test(message) && this.isSignUpMode
@@ -1913,7 +1901,8 @@
             },
 
             showAuth: function() {
-                window.location.replace('home.html');
+                document.getElementById('authContainer').classList.remove('hidden');
+                document.getElementById('appContainer').classList.add('hidden');
             },
 
             showApp: function() {
@@ -2312,7 +2301,8 @@
                     onlineUsers: new Set(),
                     typingUsers: {}
                 };
-                window.location.replace('home.html');
+                document.getElementById('authContainer').classList.remove('hidden');
+                document.getElementById('appContainer').classList.add('hidden');
             }
         };
 
@@ -2320,6 +2310,9 @@
 
         // ===== EVENT LISTENER SETUP =====
         BlockTalk.setupEventListeners = function() {
+            document.getElementById('authForm').addEventListener('submit', event => this.auth.handleSubmit(event));
+            document.getElementById('authToggleBtn').addEventListener('click', () => this.auth.toggleMode());
+
             // App events
             document.getElementById('logoutBtn').addEventListener('click', () => this.logout());
 
