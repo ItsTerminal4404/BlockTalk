@@ -1457,13 +1457,6 @@
             activateGunAccount: async function(username, authentication = {}, isNewAccount = false) {
                 const pub = this.gunUser?.is?.pub || this.gunUser?._?.sea?.pub || authentication?.pub;
                 if (typeof pub !== 'string' || !pub) throw new Error('Gun did not return a valid public account key.');
-                const ban = await this.checkModerationBan(username, pub);
-                if (ban) {
-                    this.gunUser?.leave?.();
-                    throw new Error(ban.expiresAt
-                        ? `This account is temporarily banned until ${new Date(ban.expiresAt).toLocaleString()}.`
-                        : 'This account has been permanently banned.');
-                }
                 this.knownUserPubs.set(username, pub);
                 this.state.currentUser = { username, pub };
                 this.gunProfileNode = this.gunUser.get('blocktalk').get('profile');
@@ -1471,6 +1464,13 @@
                 this.state.isAuthenticated = true;
                 sessionStorage.setItem('blocktalk:authenticated', 'active');
                 this.showApp();
+                const ban = await this.checkModerationBan(username, pub);
+                if (ban) {
+                    this.gunUser?.leave?.();
+                    throw new Error(ban.expiresAt
+                        ? `This account is temporarily banned until ${new Date(ban.expiresAt).toLocaleString()}.`
+                        : 'This account has been permanently banned.');
+                }
                 const savedProfile = await this.readGunNode(this.gunProfileNode);
                 const profile = this.createUserProfile(savedProfile || {});
                 if (isNewAccount && !profile.accountCreatedAt) profile.accountCreatedAt = Date.now();
@@ -1545,7 +1545,8 @@
                         const timeout = setTimeout(() => {
                             sessionStorage.removeItem('blocktalk:auth-handoff');
                             console.error('The authentication handoff timed out.');
-                            window.location.replace('home.html');
+                            sessionStorage.removeItem('blocktalk:authenticated');
+                            window.location.replace('signin.html');
                         }, 20000);
                         user.auth(handoff.username, handoff.accessKey, acknowledgement => {
                             clearTimeout(timeout);
