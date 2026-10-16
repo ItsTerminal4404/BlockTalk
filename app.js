@@ -2240,6 +2240,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateAuthCopy() {
         const isSignUp = app.auth.isSignUpMode;
         const mode = isSignUp ? 'Claim Username' : 'Sign In';
+        document.getElementById('authModeSubtitle').textContent = isSignUp
+            ? 'Claim an available username'
+            : 'Sign in with your access key';
         document.getElementById('authFormTitle').textContent = mode;
         document.getElementById('authSubmitBtn').textContent = mode;
         document.getElementById('toggleText').textContent = isSignUp
@@ -2250,12 +2253,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('passwordLabel').textContent = 'Access key';
         document.getElementById('confirmPasswordLabel').textContent = `${mode} Confirm Password`;
         document.getElementById('authUsername').placeholder = isSignUp ? 'Choose an available username' : 'Enter your username';
-        document.getElementById('authPassword').placeholder = isSignUp ? 'Leave blank to generate your access key' : 'Paste your 32-character access key';
-        document.getElementById('authConfirmPassword').placeholder = 'Confirm password';
+        document.getElementById('authPassword').placeholder = 'Paste your 32-character access key';
+        document.getElementById('authPasswordGroup').style.display = isSignUp ? 'none' : 'block';
+        document.getElementById('authConfirmPassword').placeholder = 'Confirm access key';
         document.getElementById('authConfirmPassword').required = false;
         document.getElementById('authPassword').required = !isSignUp;
         document.getElementById('confirmPasswordGroup').style.display = 'none';
-        document.getElementById('forgotPasswordButton').classList.add('hidden');
+        document.getElementById('authAccountWarning').classList.toggle('hidden', !isSignUp);
+        document.getElementById('forgotPasswordButton').classList.toggle('hidden', isSignUp);
     }
 
     authToggle.addEventListener('click', () => {
