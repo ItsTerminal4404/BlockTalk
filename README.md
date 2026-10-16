@@ -106,10 +106,10 @@ shown on their profile alongside their badges.
 
 Profiles show an Early OG badge when the account was newly registered before
 January 1, 2027, and the BlockTalk Owner badge for the exact
-`ItsTerminal4404_` account. In addition, the owner can award 30 collectible
+`itsterminal4404` account. In addition, the owner can award 30 collectible
 badges and 26 chat titles from a profile's owner tools, as well as special
 badges such as Beta Tester for people who help test the app. These awards are
-issued only by `ItsTerminal4404_`; collectible badges and titles are not
+issued only by `itsterminal4404`; collectible badges and titles are not
 automatically unlocked by activity or gameplay. A user's most recently
 awarded title appears beside their name in DM and server text messages and on
 their profile. `ItsTerminal4404` is no longer the owner account. Owner awards
