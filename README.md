@@ -5,50 +5,47 @@ The MIT License for this project is in [LICENSE](./LICENSE).
 BlockTalk is a static browser chat app. Gun SEA handles account registration
 and sign-in; account profiles, friend requests, presence, encrypted direct
 messages, invite-code group servers, and encrypted WebRTC call signaling
-synchronize through a public GunDB relay. Chat uses static browser files; email
-recovery additionally uses Netlify Functions, Netlify Blobs, and Bird.
+synchronize through a public GunDB relay. Chat uses static browser files;
+recovery keys additionally use a Netlify Function and Netlify Blobs.
 
 ## Run locally or deploy
 
 Serve the repository root as static files, for example with
 `python -m http.server 8000`, then open `http://localhost:8000`. Netlify deploys
-the static app and email-recovery functions from this repository. Installable
+the static app and recovery function from this repository. Installable
 PWA features and microphone access require HTTPS in production (localhost is
 allowed for local development).
 The current official deployment is `https://webblocktalk.netlify.app/`.
 
+The interface theme can be changed in Settings between the original Terminal
+look, a rounded **Blocky & Bubbly** look, and a low-contrast **Secure &
+Incognito** look. These are visual preferences only; the incognito theme does
+not change network, account, or privacy behavior.
+
+## Games
+
+The **Games** tab contains ten small browser games for quiet downtime during a
+voice call. Pop Its, Color Ring Sort, Quick Tap, Memory Match, and Higher or
+Lower are solo games. Tic-Tac-Toe, Connect Four, Reaction Duel, Dots & Boxes,
+and Nim Duel are two-player pass-and-play games. Game state stays in the
+current page and is not sent to Gun or shared with other users.
+
 Gun identities are separate from the former Node-server accounts. Existing
-server accounts are not migrated; users must create a new Gun account. New
-accounts verify a recovery email during sign-up. Older Gun accounts that were
-not enrolled with email recovery cannot be recovered by email. While signed in,
-users can also change their password from Settings by entering the current
-password and confirming a new one. Accounts are associated with the configured
-relay's Gun alias directory; changing or losing access to that relay can affect
-account discovery and availability.
+server accounts are not migrated; users must create a new Gun account. Sign-up
+and sign-in do not require an email address. New accounts receive a random
+32-character recovery key; save it somewhere safe because it is the only way
+to reset a forgotten password. Signed-in users can create or replace a key in
+Settings. Users can also change their password from Settings by entering the
+current password and confirming a new one. Accounts are associated with the
+configured relay's Gun alias directory; changing or losing access to that
+relay can affect account discovery and availability.
 
-### Email recovery service
+### Recovery key service
 
-Email recovery uses Netlify Functions, Netlify Blobs, and Bird. Before
-enabling it on a site, configure these Netlify environment variables:
-
-- `BIRD_API_KEY`: a Bird API key. Keys beginning with `bk_us1_` use the US
-  API region; keys beginning with `bk_eu1_` use the EU region. Keep it private.
-- `RECOVERY_FROM_EMAIL`: a sender address on a sending domain verified in Bird.
-- `RECOVERY_ENCRYPTION_KEY`: output from `openssl rand -base64 32`; keep it
-  private and back it up securely. Losing or rotating this key makes enrolled
-  recovery records unreadable.
-
-For production recovery emails, verify your own sending domain in Bird and use
-an address on that domain. Bird's shared `onboarding@messagebird.dev` sender is
-for initial testing and has recipient restrictions.
-
-The recovery service stores each enrolled Gun key pair encrypted in Netlify
-Blobs. The encryption key grants the service the ability to recover accounts,
-so protect it like a credential. Access to a registered recovery email can
-reset that account's password. Email addresses and recovery keys are not public
-Gun profile fields. Existing accounts must still be signed in to enroll an
-email; no recovery email can be attached to an account whose credentials are
-already lost.
+Recovery keys are stored as hashes, while each encrypted Gun key pair is
+stored in Netlify Blobs using that account's recovery key. No email provider,
+Bird API key, or recovery encryption environment variable is required. The
+recovery key is never stored in a public Gun profile or sent by email.
 
 ## Install and offline behavior
 

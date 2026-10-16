@@ -26,7 +26,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsStatus = document.getElementById('settings-status');
     const passwordChangeStatus = document.getElementById('passwordChangeStatus');
     const profilePicture = document.getElementById('my-pfp');
-    let verifiedRecoverySetup = null;
     let localStream = null;
     let gun = null;
     let currentGunMap = null;
@@ -60,6 +59,387 @@ document.addEventListener('DOMContentLoaded', () => {
     [messageSentAudio, messageReceivedAudio, callRingtoneAudio].forEach(audio => {
         audio.preload = 'auto';
     });
+
+    function initializeGames() {
+        const board = document.getElementById('gameBoard');
+        const choices = [...document.querySelectorAll('.game-choice')];
+        if (!board || !choices.length) return;
+        let activeGame = 'pop';
+        let tapTimer = 0;
+        let tapInterval = 0;
+        let memoryTimeout = 0;
+
+        const clearGameTimers = () => {
+            clearTimeout(tapTimer);
+            clearInterval(tapInterval);
+            clearTimeout(memoryTimeout);
+        };
+
+        const frame = (title, help, score, content) => `
+            <div class="game-board-header">
+                <div>
+                    <h2 class="game-board-title">${title}</h2>
+                    <p class="game-board-help">${help}</p>
+                </div>
+                <span class="game-score">${score}</span>
+            </div>
+            ${content}
+        `;
+
+        const renderPop = () => {
+            let popped = 0;
+            const total = 24;
+            board.innerHTML = frame(
+                'Pop Its',
+                'Pop every bubble before your call gets interesting again.',
+                '<span id="popScore">0</span> / 24',
+                `<div class="pop-grid">${Array.from({ length: total }, (_, index) =>
+                    `<button type="button" class="pop-bubble" data-pop-index="${index}" aria-label="Pop bubble ${index + 1}"></button>`
+                ).join('')}</div>
+                <p class="game-status" id="popStatus">Ready when you are.</p>
+                <button type="button" class="game-action" id="popReset">Reset board</button>`
+            );
+            board.querySelectorAll('.pop-bubble').forEach(bubble => {
+                bubble.addEventListener('click', () => {
+                    if (bubble.classList.contains('popped')) return;
+                    bubble.classList.add('popped');
+                    popped += 1;
+                    board.querySelector('#popScore').textContent = popped;
+                    if (popped === total) board.querySelector('#popStatus').textContent = 'Board cleared. Nice and satisfying.';
+                });
+            });
+            board.querySelector('#popReset').addEventListener('click', renderPop);
+        };
+
+        const renderSort = () => {
+            const tubes = [
+                ['red', 'yellow', 'green'],
+                ['purple', 'red', 'yellow'],
+                ['green', 'purple', 'red'],
+                ['yellow', 'green', 'purple'],
+                []
+            ];
+            let selected = -1;
+            const colors = { red: 'red', yellow: 'yellow', green: 'green', purple: 'purple' };
+            const isSolved = () => tubes.every(tube => tube.length === 0 || (tube.length === 3 && tube.every(color => color === tube[0])));
+            const render = () => {
+                board.innerHTML = frame(
+                    'Color Ring Sort',
+                    'Tap a tube, then tap another tube to move its top ring. Match three of each color.',
+                    '5 tubes',
+                    `<div class="sort-board">${tubes.map((tube, index) => `
+                        <button type="button" class="sort-tube${selected === index ? ' selected' : ''}" data-tube="${index}" aria-label="Tube ${index + 1}">
+                            ${tube.map(color => `<span class="sort-ring ${colors[color]}"></span>`).join('')}
+                        </button>`).join('')}</div>
+                        <p class="game-status" id="sortStatus">${isSolved() ? 'Sorted! Try a new mix.' : 'Choose a source tube.'}</p>
+                        <button type="button" class="game-action" id="sortReset">New mix</button>`
+                );
+                board.querySelectorAll('.sort-tube').forEach(tube => tube.addEventListener('click', () => {
+                    const destination = Number(tube.dataset.tube);
+                    if (selected === -1) {
+                        if (tubes[destination].length) selected = destination;
+                    } else if (selected === destination) {
+                        selected = -1;
+                    } else {
+                        const source = tubes[selected];
+                        const target = tubes[destination];
+                        const color = source[source.length - 1];
+                        if (color && target.length < 3 && (!target.length || target[target.length - 1] === color)) {
+                            target.push(source.pop());
+                        }
+                        selected = -1;
+                    }
+                    render();
+                }));
+                board.querySelector('#sortReset').addEventListener('click', renderSort);
+            };
+            render();
+        };
+
+        const renderTap = () => {
+            let score = 0;
+            let remaining = 10;
+            let running = false;
+            board.innerHTML = frame(
+                'Quick Tap',
+                'Start the round, then tap the button as many times as possible in ten seconds.',
+                '<span id="tapScore">0</span> taps',
+                `<button type="button" class="tap-target" id="tapTarget">Start</button>
+                <p class="game-status" id="tapStatus">Ten seconds on the clock.</p>`
+            );
+            const target = board.querySelector('#tapTarget');
+            const status = board.querySelector('#tapStatus');
+            const scoreElement = board.querySelector('#tapScore');
+            target.addEventListener('click', () => {
+                if (!running) {
+                    running = true;
+                    target.textContent = 'Tap!';
+                    tapInterval = window.setInterval(() => {
+                        remaining -= 1;
+                        status.textContent = `${remaining}s remaining`;
+                        if (remaining <= 0) {
+                            clearGameTimers();
+                            running = false;
+                            target.disabled = true;
+                            target.textContent = 'Done';
+                            status.textContent = `Time! You got ${score} taps.`;
+                        }
+                    }, 1000);
+                    return;
+                }
+                score += 1;
+                scoreElement.textContent = score;
+            });
+        };
+
+        const renderMemory = () => {
+            const symbols = ['★', '★', '☀', '☀', '♣', '♣', '◆', '◆', '♥', '♥', '♫', '♫']
+                .sort(() => Math.random() - 0.5);
+            let flipped = [];
+            let matched = 0;
+            let locked = false;
+            board.innerHTML = frame(
+                'Memory Match',
+                'Reveal two cards at a time and find all six pairs.',
+                '<span id="memoryScore">0</span> / 6 pairs',
+                `<div class="memory-grid">${symbols.map((_, index) =>
+                    `<button type="button" class="memory-card" data-memory-index="${index}" aria-label="Hidden card ${index + 1}">?</button>`
+                ).join('')}</div>
+                <p class="game-status" id="memoryStatus">Find a matching pair.</p>
+                <button type="button" class="game-action" id="memoryReset">Shuffle again</button>`
+            );
+            const cards = [...board.querySelectorAll('.memory-card')];
+            cards.forEach((card, index) => card.addEventListener('click', () => {
+                if (locked || flipped.includes(index) || card.classList.contains('matched')) return;
+                card.textContent = symbols[index];
+                card.classList.add('flipped');
+                flipped.push(index);
+                if (flipped.length < 2) return;
+                locked = true;
+                const [first, second] = flipped;
+                if (symbols[first] === symbols[second]) {
+                    cards[first].classList.add('matched');
+                    cards[second].classList.add('matched');
+                    matched += 1;
+                    board.querySelector('#memoryScore').textContent = matched;
+                    flipped = [];
+                    locked = false;
+                    if (matched === 6) board.querySelector('#memoryStatus').textContent = 'All matched. Great recall.';
+                } else {
+                    memoryTimeout = window.setTimeout(() => {
+                        cards[first].textContent = '?';
+                        cards[second].textContent = '?';
+                        cards[first].classList.remove('flipped');
+                        cards[second].classList.remove('flipped');
+                        flipped = [];
+                        locked = false;
+                    }, 650);
+                }
+            }));
+            board.querySelector('#memoryReset').addEventListener('click', renderMemory);
+        };
+
+        const renderHigher = () => {
+            let current = Math.floor(Math.random() * 13) + 1;
+            let streak = 0;
+            const nextCard = direction => {
+                const next = Math.floor(Math.random() * 13) + 1;
+                const correct = direction === 'higher' ? next >= current : next <= current;
+                streak = correct ? streak + 1 : 0;
+                current = next;
+                render();
+                board.querySelector('#higherStatus').textContent = correct
+                    ? `Correct! Streak: ${streak}.`
+                    : `Not quite. Your streak reset to zero.`;
+            };
+            const render = () => {
+                board.innerHTML = frame(
+                    'Higher or Lower',
+                    'Will the next card be higher or lower? Equal cards count as a win.',
+                    `streak: <span id="higherScore">${streak}</span>`,
+                    `<div class="higher-card">Current number<span class="higher-number">${current}</span></div>
+                    <div class="higher-actions">
+                        <button type="button" class="game-action" data-higher="higher">Higher</button>
+                        <button type="button" class="game-action" data-higher="lower">Lower</button>
+                    </div>
+                    <p class="game-status" id="higherStatus">Make your call.</p>`
+                );
+                board.querySelectorAll('[data-higher]').forEach(button =>
+                    button.addEventListener('click', () => nextCard(button.dataset.higher))
+                );
+            };
+            render();
+        };
+
+        const renderTic = () => {
+            let cells = Array(9).fill('');
+            let player = 'X';
+            let winner = '';
+            const wins = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
+            const render = () => {
+                winner = wins.find(line => line.every(index => cells[index] === player)) ? player : winner;
+                const winningLine = wins.find(line => line.every(index => cells[index] && cells[index] === cells[line[0]]));
+                const status = winner ? `Player ${winner} wins!` : cells.every(Boolean) ? 'Draw game.' : `Player ${player}'s turn`;
+                board.innerHTML = frame('Tic-Tac-Toe', 'Take turns placing your mark. First to get three in a row wins.', '2 players',
+                    `<div class="tic-grid">${cells.map((cell, index) => `<button type="button" class="tic-cell ${cell.toLowerCase()}" data-tic="${index}">${cell}</button>`).join('')}</div>
+                    <p class="game-status">${status}</p><button type="button" class="game-action" id="ticReset">New game</button>`);
+                board.querySelectorAll('[data-tic]').forEach(cell => cell.addEventListener('click', () => {
+                    const index = Number(cell.dataset.tic);
+                    if (cells[index] || winner || cells.every(Boolean)) return;
+                    cells[index] = player;
+                    const hasWon = wins.some(line => line.every(position => cells[position] === player));
+                    if (hasWon) winner = player;
+                    else player = player === 'X' ? 'O' : 'X';
+                    render();
+                }));
+                board.querySelector('#ticReset').addEventListener('click', renderTic);
+            };
+            render();
+        };
+
+        const renderConnect = () => {
+            let grid = Array(42).fill('');
+            let player = 'R';
+            let winner = '';
+            const getWinner = () => {
+                for (let row = 0; row < 6; row++) for (let column = 0; column < 7; column++) {
+                    const index = row * 7 + column;
+                    if (!grid[index]) continue;
+                    for (const [dr, dc] of [[0, 1], [1, 0], [1, 1], [1, -1]]) {
+                        if ([1, 2, 3].every(step => grid[(row + dr * step) * 7 + column + dc * step] === grid[index])) return grid[index];
+                    }
+                }
+                return '';
+            };
+            const render = () => {
+                const status = winner ? `Player ${winner === 'R' ? 'Red' : 'Gold'} wins!` : grid.every(Boolean) ? 'Draw game.' : `Player ${player === 'R' ? 'Red' : 'Gold'}'s turn`;
+                board.innerHTML = frame('Connect Four', 'Drop your pieces into a column. Connect four before your opponent.', '2 players',
+                    `<div class="connect-grid">${grid.map((cell, index) => `<button type="button" class="connect-cell ${cell.toLowerCase()}" data-connect="${index}" aria-label="Column ${index % 7 + 1}">${cell ? '●' : ''}</button>`).join('')}</div>
+                    <p class="game-status">${status}</p><button type="button" class="game-action" id="connectReset">New game</button>`);
+                board.querySelectorAll('[data-connect]').forEach(cell => cell.addEventListener('click', () => {
+                    const column = Number(cell.dataset.connect) % 7;
+                    if (winner) return;
+                    for (let row = 5; row >= 0; row--) {
+                        const index = row * 7 + column;
+                        if (!grid[index]) {
+                            grid[index] = player;
+                            winner = getWinner();
+                            if (!winner) player = player === 'R' ? 'G' : 'R';
+                            render();
+                            return;
+                        }
+                    }
+                }));
+                board.querySelector('#connectReset').addEventListener('click', renderConnect);
+            };
+            render();
+        };
+
+        const renderReaction = () => {
+            let round = 0;
+            let scores = [0, 0];
+            let ready = false;
+            let prompt = false;
+            const render = () => {
+                board.innerHTML = frame('Reaction Duel', 'Players take turns pressing ready. When GO appears, tap your button first.', `${scores[0]} — ${scores[1]}`,
+                    `<div class="reaction-panel"><p class="reaction-message" id="reactionMessage">${prompt ? 'GO!' : ready ? 'Get ready…' : 'Player 1 starts'}</p>
+                    <div class="reaction-actions"><button type="button" class="game-action" data-reaction="0">Player 1</button><button type="button" class="game-action" data-reaction="1">Player 2</button></div></div>
+                    <p class="game-status">${round ? `Round ${round}` : 'Press either button to begin.'}</p><button type="button" class="game-action" id="reactionReset">Reset score</button>`);
+                board.querySelectorAll('[data-reaction]').forEach(button => button.addEventListener('click', () => {
+                    const index = Number(button.dataset.reaction);
+                    if (prompt) {
+                        scores[index] += 1;
+                        round += 1;
+                        ready = false;
+                        prompt = false;
+                        clearGameTimers();
+                        render();
+                    } else if (!ready) {
+                        ready = true;
+                        render();
+                        tapTimer = window.setTimeout(() => {
+                            prompt = true;
+                            render();
+                        }, 1000 + Math.random() * 2500);
+                    }
+                }));
+                board.querySelector('#reactionReset').addEventListener('click', renderReaction);
+            };
+            render();
+        };
+
+        const renderDots = () => {
+            let edges = new Set();
+            let claimedBoxes = new Set();
+            let scores = [0, 0];
+            let player = 0;
+            const edgeKey = (row, column, horizontal) => `${row}-${column}-${horizontal ? 'h' : 'v'}`;
+            const boxes = [[0, 0], [0, 1], [1, 0], [1, 1]];
+            const isBoxClaimed = (row, column) => [
+                edgeKey(row, column, true), edgeKey(row + 1, column, true),
+                edgeKey(row, column, false), edgeKey(row, column + 1, false)
+            ].every(edge => edges.has(edge));
+            const render = () => {
+                const claimed = claimedBoxes.size;
+                board.innerHTML = frame('Dots & Boxes', 'Take turns drawing an edge. Completing a box earns a point and another turn.', `${scores[0]} — ${scores[1]}`,
+                    `<div class="dots-board">${Array.from({ length: 9 }, (_, index) => `<span class="dot-point">${index % 3 === 0 || index % 3 === 1 || index % 3 === 2 ? '•' : ''}</span>`).join('')}
+                    ${[0, 1, 2].map(row => [0, 1].map(column => `<button type="button" class="dot-edge dot-h ${edges.has(edgeKey(row, column, true)) ? 'used' : ''}" style="--row:${row};--column:${column}" data-dot="${edgeKey(row, column, true)}"></button>`).join('')).join('')}
+                    ${[0, 1].map(row => [0, 1, 2].map(column => `<button type="button" class="dot-edge dot-v ${edges.has(edgeKey(row, column, false)) ? 'used' : ''}" style="--row:${row};--column:${column}" data-dot="${edgeKey(row, column, false)}"></button>`).join('')).join('')}
+                    </div><p class="game-status">${claimed === 4 ? `Player ${scores[0] > scores[1] ? 1 : 2} wins!` : `Player ${player + 1}'s turn`}</p>
+                    <button type="button" class="game-action" id="dotsReset">New game</button>`);
+                board.querySelectorAll('[data-dot]').forEach(button => button.addEventListener('click', () => {
+                    if (edges.has(button.dataset.dot) || claimed === 4) return;
+                    edges.add(button.dataset.dot);
+                    const completedNow = boxes
+                        .map(([row, column]) => [row, column, `${row}-${column}`])
+                        .filter(([row, column, key]) => isBoxClaimed(row, column) && !claimedBoxes.has(key));
+                    completedNow.forEach(([, , key]) => claimedBoxes.add(key));
+                    const completed = completedNow.length > 0;
+                    if (completed) scores[player] += 1;
+                    else player = player ? 0 : 1;
+                    render();
+                }));
+                board.querySelector('#dotsReset').addEventListener('click', renderDots);
+            };
+            render();
+        };
+
+        const renderNim = () => {
+            let tokens = 15;
+            let player = 0;
+            const take = amount => {
+                tokens -= amount;
+                if (!tokens) {
+                    board.querySelector('#nimStatus').textContent = `Player ${player + 1} wins!`;
+                    board.querySelectorAll('[data-nim]').forEach(button => { button.disabled = true; });
+                    return;
+                }
+                player = player ? 0 : 1;
+                render();
+            };
+            const render = () => {
+                board.innerHTML = frame('Nim Duel', 'Take one to three tokens. Whoever takes the last token wins.', `${tokens} tokens`,
+                    `<div class="nim-tokens">${Array.from({ length: tokens }, () => '<span>●</span>').join('')}</div>
+                    <div class="nim-actions">${[1, 2, 3].map(amount => `<button type="button" class="game-action" data-nim="${amount}" ${amount > tokens ? 'disabled' : ''}>Take ${amount}</button>`).join('')}</div>
+                    <p class="game-status" id="nimStatus">Player ${player + 1}'s turn.</p><button type="button" class="game-action" id="nimReset">New game</button>`);
+                board.querySelectorAll('[data-nim]').forEach(button => button.addEventListener('click', () => take(Number(button.dataset.nim))));
+                board.querySelector('#nimReset').addEventListener('click', renderNim);
+            };
+            render();
+        };
+
+        const renderGame = game => {
+            clearGameTimers();
+            activeGame = game;
+            choices.forEach(choice => choice.classList.toggle('active', choice.dataset.game === game));
+            ({ pop: renderPop, sort: renderSort, tap: renderTap, memory: renderMemory, higher: renderHigher,
+                tic: renderTic, connect: renderConnect, reaction: renderReaction, dots: renderDots, nim: renderNim }[game] || renderPop)();
+        };
+
+        choices.forEach(choice => choice.addEventListener('click', () => renderGame(choice.dataset.game)));
+        renderGame(activeGame);
+    }
+
     const OWNER_BADGE_CATALOG = [
         { id: 'welcome-wagon', name: 'Welcome Wagon', category: 'Community & Status' },
         { id: 'community-pillar', name: 'Community Pillar', category: 'Community & Status' },
@@ -1814,10 +2194,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return (parts[0] || '?').slice(0, 2).toUpperCase();
     }
 
-    const themeClassNames = ['theme-terminal', 'theme-cyberpunk', 'theme-light'];
+    const themeClassNames = ['theme-terminal', 'theme-blocky', 'theme-incognito', 'theme-cyberpunk', 'theme-light'];
 
     function applyTheme(theme) {
-        const selectedTheme = ['terminal', 'cyberpunk', 'light'].includes(theme) ? theme : 'terminal';
+        const selectedTheme = ['terminal', 'blocky', 'incognito', 'cyberpunk', 'light'].includes(theme) ? theme : 'terminal';
         document.body.classList.remove(...themeClassNames);
         document.body.classList.add(`theme-${selectedTheme}`);
         return selectedTheme;
@@ -1887,6 +2267,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('currentPassword').value = '';
         document.getElementById('newPassword').value = '';
         document.getElementById('confirmNewPassword').value = '';
+        document.getElementById('settings-recovery-key').value = app.auth.lastRecoveryKey || '';
+        document.getElementById('settingsRecoveryStatus').textContent = '';
         applyTheme(settingsTheme.value);
         settingsModal.classList.remove('hidden');
         settingsPfpUrl.focus();
@@ -1992,7 +2374,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentPasswordInput.value = '';
             newPasswordInput.value = '';
             confirmPasswordInput.value = '';
-            passwordChangeStatus.textContent = 'Password changed. Keep it safe; email recovery is available only if you enrolled a verified recovery address.';
+            passwordChangeStatus.textContent = 'Password changed. Keep it safe; recovery requires your 32-character recovery key.';
         } catch (error) {
             passwordChangeStatus.textContent = `Could not change password: ${error.message}`;
         } finally {
@@ -2004,62 +2386,28 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('settings-close').addEventListener('click', closeSettings);
     document.getElementById('settings-save').addEventListener('click', saveSettings);
     document.getElementById('changePasswordButton').addEventListener('click', changeAccountPassword);
-    document.getElementById('sendSettingsRecoveryCode').addEventListener('click', async () => {
+    document.getElementById('generateSettingsRecoveryKey').addEventListener('click', async () => {
         const username = app.state.currentUser?.username;
-        const email = document.getElementById('settings-recovery-email').value.trim().toLowerCase();
+        const keyInput = document.getElementById('settings-recovery-key');
         const status = document.getElementById('settingsRecoveryStatus');
-        verifiedRecoverySetup = null;
         status.textContent = '';
-        try {
-            const result = await app.auth.postRecoveryAction('send-code', { purpose: 'setup', username, email });
-            status.textContent = result.message;
-        } catch (error) {
-            status.textContent = error.message;
-        }
-    });
-    document.getElementById('verifySettingsRecoveryCode').addEventListener('click', async () => {
-        const username = app.state.currentUser?.username;
-        const email = document.getElementById('settings-recovery-email').value.trim().toLowerCase();
-        const code = document.getElementById('settings-recovery-code').value.trim();
-        const status = document.getElementById('settingsRecoveryStatus');
-        verifiedRecoverySetup = null;
-        status.textContent = '';
-        try {
-            const result = await app.auth.postRecoveryAction('verify-code', {
-                purpose: 'setup',
-                username,
-                email,
-                code
-            });
-            verifiedRecoverySetup = { username, email, code };
-            status.textContent = result.message;
-        } catch (error) {
-            status.textContent = error.message;
-        }
-    });
-    document.getElementById('enableSettingsRecovery').addEventListener('click', async () => {
-        const status = document.getElementById('settingsRecoveryStatus');
-        const username = app.state.currentUser?.username;
-        const pair = app.gunUser?._?.sea;
-        if (!username || !pair || !verifiedRecoverySetup ||
-            verifiedRecoverySetup.username !== username ||
-            verifiedRecoverySetup.email !== document.getElementById('settings-recovery-email').value.trim().toLowerCase() ||
-            verifiedRecoverySetup.code !== document.getElementById('settings-recovery-code').value.trim()) {
-            status.textContent = 'Verify your email code before enabling recovery.';
+        const recoveryKey = keyInput.value.trim() || app.generateRecoveryKey();
+        if (!/^[a-zA-Z0-9]{32}$/.test(recoveryKey)) {
+            status.textContent = 'Recovery keys must be exactly 32 letters and numbers.';
             return;
         }
-        const button = document.getElementById('enableSettingsRecovery');
+        const pair = app.gunUser?._?.sea;
+        if (!username || !pair) {
+            status.textContent = 'Sign in again before setting up recovery.';
+            return;
+        }
+        const button = document.getElementById('generateSettingsRecoveryKey');
         button.disabled = true;
         try {
-            const result = await app.auth.enrollEmailRecovery(
-                username,
-                verifiedRecoverySetup.email,
-                verifiedRecoverySetup.code,
-                pair,
-                'setup'
-            );
+            const result = await app.auth.enrollRecoveryKey(username, recoveryKey, pair);
+            app.auth.lastRecoveryKey = recoveryKey;
+            keyInput.value = recoveryKey;
             status.textContent = result.message;
-            verifiedRecoverySetup = null;
         } catch (error) {
             status.textContent = error.message;
         } finally {
@@ -3229,6 +3577,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return result;
     };
     syncCallView();
+    initializeGames();
     window.addEventListener('blocktalk:authenticated', () => {
         syncUserPreferences();
         renderServerList();
