@@ -5,9 +5,7 @@ The MIT License for this project is in [LICENSE](./LICENSE).
 BlockTalk is a static browser chat app. Gun SEA handles account registration
 and key-based sign-in; account profiles, friend requests, presence, encrypted direct
 messages, invite-code group servers, and encrypted WebRTC call signaling
-synchronize through a public GunDB relay. Chat and account recovery use static
-browser files. Recovery files are encrypted locally and never uploaded by
-BlockTalk.
+synchronize through a public GunDB relay. Chat uses static browser files.
 
 ## Run locally or deploy
 
@@ -63,16 +61,6 @@ way to sign in. Existing accounts with an enrolled key can also sign in with
 that key. Accounts are associated with the
 configured relay's Gun alias directory; changing or losing access to that
 relay can affect account discovery and availability.
-
-### Recovery key service
-
-Recovery setup downloads a JSON recovery file containing the Gun key pair
-encrypted with AES-256-GCM. The recovery key is used with PBKDF2-SHA256
-(210,000 iterations) to derive the encryption key. The recovery file and
-32-character key must be kept separately and are both required to recover an
-account. The file is created, decrypted, and used entirely in the browser; it
-is never sent to Gun or a hosting provider. Losing either the file or the key
-means the account cannot be recovered through this feature.
 
 ## Install and offline behavior
 

@@ -23,7 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const settingsPfpUrl = document.getElementById('settings-pfp-url');
     const settingsTheme = document.getElementById('settings-theme');
     const settingsStatus = document.getElementById('settings-status');
-    const passwordChangeStatus = document.getElementById('passwordChangeStatus');
     const profilePicture = document.getElementById('my-pfp');
     let localStream = null;
     let gun = null;
@@ -2319,12 +2318,6 @@ document.addEventListener('DOMContentLoaded', () => {
         settingsTheme.value = profile.theme || 'terminal';
         syncAudioPreferenceControls();
         settingsStatus.textContent = '';
-        passwordChangeStatus.textContent = '';
-        document.getElementById('currentPassword').value = '';
-        document.getElementById('newPassword').value = '';
-        document.getElementById('confirmNewPassword').value = '';
-        document.getElementById('settings-recovery-key').value = app.auth.lastRecoveryKey || '';
-        document.getElementById('settingsRecoveryStatus').textContent = '';
         applyTheme(settingsTheme.value);
         settingsModal.classList.remove('hidden');
         settingsPfpUrl.focus();
@@ -2335,9 +2328,6 @@ document.addEventListener('DOMContentLoaded', () => {
         profilePictureCropState = null;
         document.getElementById('profilePictureCrop').classList.add('hidden');
         syncUserPreferences();
-        document.getElementById('currentPassword').value = '';
-        document.getElementById('newPassword').value = '';
-        document.getElementById('confirmNewPassword').value = '';
         settingsModal.classList.add('hidden');
         settingsButton.focus();
     }
@@ -2390,99 +2380,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function changeAccountPassword() {
-        const currentPasswordInput = document.getElementById('currentPassword');
-        const newPasswordInput = document.getElementById('newPassword');
-        const confirmPasswordInput = document.getElementById('confirmNewPassword');
-        const changeButton = document.getElementById('changePasswordButton');
-        const currentPassword = currentPasswordInput.value;
-        const newPassword = newPasswordInput.value;
-        passwordChangeStatus.textContent = '';
-
-        if (!app.state.currentUser || !app.gunUser) {
-            passwordChangeStatus.textContent = 'Sign in before changing your password.';
-            return;
-        }
-        if (!currentPassword) {
-            passwordChangeStatus.textContent = 'Enter your current password.';
-            currentPasswordInput.focus();
-            return;
-        }
-        if (newPassword.length < 12) {
-            passwordChangeStatus.textContent = 'Your new password must be at least 12 characters.';
-            newPasswordInput.focus();
-            return;
-        }
-        if (newPassword !== confirmPasswordInput.value) {
-            passwordChangeStatus.textContent = 'The new passwords do not match.';
-            confirmPasswordInput.focus();
-            return;
-        }
-        if (newPassword === currentPassword) {
-            passwordChangeStatus.textContent = 'Choose a new password that differs from your current password.';
-            newPasswordInput.focus();
-            return;
-        }
-
-        changeButton.disabled = true;
-        passwordChangeStatus.textContent = 'Verifying your current password and updating your account...';
-        try {
-            await new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => reject(new Error('Password change timed out. Check your connection and try again.')), 20000);
-                app.gunUser.auth(
-                    app.state.currentUser.username,
-                    currentPassword,
-                    acknowledgement => {
-                        clearTimeout(timeout);
-                        if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
-                        else resolve(acknowledgement);
-                    },
-                    { change: newPassword }
-                );
-            });
-            currentPasswordInput.value = '';
-            newPasswordInput.value = '';
-            confirmPasswordInput.value = '';
-            passwordChangeStatus.textContent = 'Password changed. Keep it safe; recovery requires your 32-character recovery key.';
-        } catch (error) {
-            passwordChangeStatus.textContent = `Could not change password: ${error.message}`;
-        } finally {
-            changeButton.disabled = false;
-        }
-    }
-
     settingsButton.addEventListener('click', openSettings);
     document.getElementById('settings-close').addEventListener('click', closeSettings);
     document.getElementById('settings-save').addEventListener('click', saveSettings);
-    document.getElementById('changePasswordButton').addEventListener('click', changeAccountPassword);
-    document.getElementById('generateSettingsRecoveryKey').addEventListener('click', async () => {
-        const username = app.state.currentUser?.username;
-        const keyInput = document.getElementById('settings-recovery-key');
-        const status = document.getElementById('settingsRecoveryStatus');
-        status.textContent = '';
-        const recoveryKey = keyInput.value.trim() || app.generateRecoveryKey();
-        if (!/^[a-zA-Z0-9]{32}$/.test(recoveryKey)) {
-            status.textContent = 'Recovery keys must be exactly 32 letters and numbers.';
-            return;
-        }
-        const pair = app.gunUser?._?.sea;
-        if (!username || !pair) {
-            status.textContent = 'Sign in again before setting up recovery.';
-            return;
-        }
-        const button = document.getElementById('generateSettingsRecoveryKey');
-        button.disabled = true;
-        try {
-            const result = await app.auth.enrollRecoveryKey(username, recoveryKey, pair);
-            app.auth.lastRecoveryKey = recoveryKey;
-            keyInput.value = recoveryKey;
-            status.textContent = result.message;
-        } catch (error) {
-            status.textContent = error.message;
-        } finally {
-            button.disabled = false;
-        }
-    });
     const profilePictureFile = document.getElementById('settings-pfp-file');
     const profilePictureDropzone = document.getElementById('profilePictureDropzone');
     async function setPendingProfilePicture(file) {

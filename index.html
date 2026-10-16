@@ -1041,16 +1041,6 @@
                 <option value="blocky">Blocky &amp; Bubbly</option>
                 <option value="incognito">Secure &amp; Incognito</option>
             </select>
-            <section class="settings-account-section" aria-labelledby="settings-recovery-title">
-                <h3 class="settings-section-title" id="settings-recovery-title">Account recovery key</h3>
-                <p class="settings-help">A recovery key replaces email recovery. Anyone who has this 32-character key can reset this account's password, so store it offline and never share it.</p>
-                <label class="settings-label" for="settings-recovery-key">Recovery key</label>
-                <div class="auth-recovery-row">
-                    <input class="settings-input" id="settings-recovery-key" type="text" maxlength="32" autocomplete="off" spellcheck="false">
-                    <button type="button" class="add-friend-button" id="generateSettingsRecoveryKey">Generate &amp; save</button>
-                </div>
-                <p class="settings-status" id="settingsRecoveryStatus" role="status" aria-live="polite"></p>
-            </section>
             <section class="settings-account-section" aria-labelledby="settings-audio-title">
                 <h3 class="settings-section-title" id="settings-audio-title">Audio</h3>
                 <label class="settings-audio-option">
@@ -1069,18 +1059,6 @@
                     Ringtone volume <span id="settings-ringtone-volume-value">70%</span>
                 </label>
                 <input class="settings-input" id="settings-ringtone-volume" type="range" min="0" max="100" step="1" value="70">
-            </section>
-            <section class="settings-account-section" aria-labelledby="settings-password-title">
-                <h3 class="settings-section-title" id="settings-password-title">Change Password</h3>
-                <p class="settings-help">Enter your current password, then choose and confirm a new password. Gun accounts do not have email-based password recovery.</p>
-                <label class="settings-label" for="currentPassword">Current password</label>
-                <input class="settings-input" id="currentPassword" type="password" autocomplete="current-password">
-                <label class="settings-label" for="newPassword">New password</label>
-                <input class="settings-input" id="newPassword" type="password" autocomplete="new-password" minlength="12">
-                <label class="settings-label" for="confirmNewPassword">Confirm new password</label>
-                <input class="settings-input" id="confirmNewPassword" type="password" autocomplete="new-password" minlength="12">
-                <button type="button" class="settings-save-button" id="changePasswordButton">Change Password</button>
-                <p class="settings-status" id="passwordChangeStatus" role="status" aria-live="polite"></p>
             </section>
             <p class="settings-status" id="settings-status" role="status" aria-live="polite"></p>
             <div class="settings-actions">
