@@ -1,7 +1,8 @@
-const CACHE_NAME = 'blocktalk-shell-v14';
+const CACHE_NAME = 'blocktalk-shell-v15';
 const SHELL_ASSETS = [
     '/',
     '/index.html',
+    '/jokes.js',
     '/app.js',
     '/style.css',
     '/logo.png',

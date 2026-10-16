@@ -770,7 +770,7 @@
                     <strong>⚠️ SECURITY NOTICE</strong>
                     <ul>
                         <li><strong>Protect your account:</strong> Your generated access key is the only credential. Never share it or store it in a public place.</li>
-                        <li><strong>Check your URL bar:</strong> The official web address for this application is <code>https://webblocktalk.netlify.app</code>. If you are on a Vercel, Cloudflare (<code>pages.dev</code>), or any other domain, it is not this official site. Do not enter your credentials there.</li>
+                        <li><strong>Check your URL bar:</strong> Only enter credentials on a deployment address you trust. Be especially careful with copied links and lookalike domains.</li>
                     </ul>
                 </aside>
                 <p class="auth-account-warning">
@@ -790,11 +790,13 @@
             </form>
             <section class="auth-recovery-panel hidden" id="emailRecoveryPanel" aria-labelledby="emailRecoveryTitle">
                 <h2 class="auth-form-title" id="emailRecoveryTitle">Recover your account</h2>
-                <p class="settings-help">Enter your username and 32-character access key to recover your account.</p>
+                <p class="settings-help">Choose your encrypted recovery file and enter the separate 32-character recovery key. The file and key are required together; BlockTalk never uploads either one.</p>
                 <label class="form-label" for="recoveryUsername">Username</label>
                 <input type="text" class="form-input" id="recoveryUsername" maxlength="32" autocomplete="username" placeholder="Your BlockTalk username">
                 <label class="form-label" for="accountRecoveryKey">Recovery key</label>
                 <input type="text" class="form-input" id="accountRecoveryKey" maxlength="32" autocomplete="off" spellcheck="false" placeholder="32-character recovery key">
+                <label class="form-label" for="accountRecoveryFile">Encrypted recovery file</label>
+                <input type="file" class="form-input" id="accountRecoveryFile" accept="application/json,.json">
                 <p class="form-error" id="accountRecoveryStatus" role="status" aria-live="polite"></p>
                 <div class="auth-recovery-actions">
                     <button type="button" class="settings-close-button" id="cancelAccountRecovery">Back to sign in</button>
@@ -830,6 +832,7 @@
                 <button class="nav-tab" data-tab="friends">Friends</button>
                 <button class="nav-tab" data-tab="servers">Servers</button>
                 <button class="nav-tab" data-tab="games">Games</button>
+                <button class="nav-tab" data-tab="editor">Skin Editor</button>
             </div>
 
             <!-- FRIENDS PANEL -->
@@ -943,6 +946,45 @@
                     <section class="game-board" id="gameBoard" aria-live="polite"></section>
                 </div>
             </section>
+            <section class="editor-stage hidden" id="editorStage" aria-labelledby="editorTitle">
+                <div class="editor-stage-header">
+                    <div>
+                        <p class="games-kicker">BLOCKTALK / EAGLERCRAFT TOOLS</p>
+                        <h1 class="games-title" id="editorTitle">Minecraft skin &amp; cape editor</h1>
+                        <p class="games-subtitle">Create a standard PNG locally in your browser. Nothing is uploaded.</p>
+                    </div>
+                    <span class="games-call-note">Eaglercraft-ready PNGs</span>
+                </div>
+                <div class="editor-toolbar">
+                    <label class="editor-select-label" for="editorAssetType">Asset
+                        <select id="editorAssetType" class="settings-input">
+                            <option value="skin">Skin · 64×64</option>
+                            <option value="cape">Cape · 64×32</option>
+                        </select>
+                    </label>
+                    <label class="editor-color-label" for="editorColor">Color
+                        <input type="color" id="editorColor" value="#4ade80">
+                    </label>
+                    <button type="button" class="game-action" id="editorEraser">Eraser: off</button>
+                    <button type="button" class="game-action" id="editorClear">Clear</button>
+                    <label class="game-action editor-file-label" for="editorImport">Import PNG
+                        <input type="file" id="editorImport" accept="image/png,.png" hidden>
+                    </label>
+                    <button type="button" class="game-action" id="editorDownload">Download PNG</button>
+                </div>
+                <div class="editor-layout">
+                    <div class="editor-canvas-wrap">
+                        <canvas id="editorCanvas" width="64" height="64" aria-label="Pixel editor canvas"></canvas>
+                        <p class="game-status" id="editorStatus">Click or drag on the canvas to paint.</p>
+                    </div>
+                    <div class="editor-help">
+                        <h2>How to use</h2>
+                        <p>Choose skin or cape, pick a color, then paint pixels. Use the eraser for transparent pixels.</p>
+                        <p>Skin files use Minecraft's standard 64×64 layout. Capes use a transparent 64×32 PNG, suitable for Eaglercraft cape upload tools.</p>
+                        <p class="editor-warning">Keep exported files private if they contain personal designs. This editor does not send files over the network.</p>
+                    </div>
+                </div>
+            </section>
             <!-- CHAT HEADER -->
             <div class="chat-header" id="chatHeaderContainer">
                 <div>
@@ -1049,9 +1091,18 @@
                 placeholder="Tell people a little about yourself" rows="4"></textarea>
             <label class="settings-label" for="settings-pfp-file">Or choose / drop an image</label>
             <label class="profile-picture-dropzone" id="profilePictureDropzone" for="settings-pfp-file">
-                <span id="profilePictureDropzoneText">Drop a picture here or browse (WebP/JPEG/PNG, max 160 KB)</span>
+                <span id="profilePictureDropzoneText">Drop a picture here or browse (PNG/JPEG/WebP, up to 10 MB)</span>
                 <input id="settings-pfp-file" type="file" accept="image/*" hidden>
             </label>
+            <div class="profile-picture-crop hidden" id="profilePictureCrop">
+                <p class="settings-help">Move the image inside the circle and adjust the zoom before saving.</p>
+                <div class="profile-picture-crop-frame">
+                    <canvas id="profilePictureCropCanvas" width="320" height="320" aria-label="Profile picture crop preview"></canvas>
+                </div>
+                <label class="settings-label" for="profilePictureZoom">Zoom</label>
+                <input class="settings-input" id="profilePictureZoom" type="range" min="1" max="3" step="0.01" value="1">
+                <button type="button" class="settings-close-button" id="resetProfilePictureCrop">Reset crop</button>
+            </div>
             <label class="settings-label" for="settings-theme">Interface Theme</label>
             <p class="settings-help">Choose how BlockTalk looks on this device. Your choice is saved to your profile. Secure &amp; Incognito is a visual theme, not a substitute for safe browsing or account security.</p>
             <select class="settings-input" id="settings-theme">
@@ -1140,6 +1191,19 @@
                     <select class="settings-input" id="ownerAwardSelection"></select>
                     <button type="button" class="add-friend-button" id="awardBadgeButton" disabled>Award</button>
                 </div>
+                <h3 class="settings-section-title">Moderation</h3>
+                <p class="settings-help">Bans are signed by the owner and checked when clients sign in. A temporary ban expires automatically.</p>
+                <div class="server-form-row">
+                    <select class="settings-input" id="moderationDuration">
+                        <option value="permanent">Permanent ban</option>
+                        <option value="3600000">1 hour</option>
+                        <option value="86400000">24 hours</option>
+                        <option value="604800000">7 days</option>
+                    </select>
+                    <button type="button" class="add-friend-button" id="banUserButton" disabled>Ban</button>
+                    <button type="button" class="settings-close-button" id="unbanUserButton" disabled>Unban</button>
+                </div>
+                <p id="moderationStatus" role="status" aria-live="polite"></p>
             </section>
         </section>
     </div>
@@ -1274,6 +1338,27 @@
                     this.gun.get(`~${pub}`).get('blocktalk').get('profile')
                 );
                 return this.createUserProfile(record || {});
+            },
+
+            checkModerationBan: async function(username, pub) {
+                if (username === 'itsterminal4404') return null;
+                const ownerPub = await this.lookupUserPub('itsterminal4404');
+                if (!ownerPub) return null;
+                const record = await this.readGunNode(
+                    this.gun.get('blocktalk-v1').get('moderation').get('bans').get(pub)
+                );
+                if (!record?.payload || typeof record.signature !== 'string') return null;
+                const payload = record.payload;
+                if (payload.action !== 'ban' || payload.targetPub !== pub ||
+                    payload.target !== username || payload.issuerPub !== ownerPub ||
+                    !Number.isFinite(payload.issuedAt) ||
+                    (!payload.expiresAt && payload.expiresAt !== 0)) return null;
+                const verified = await this.getGunSea().verify(record.signature, ownerPub);
+                if (!verified || verified.action !== 'ban' || verified.targetPub !== pub ||
+                    verified.target !== username || verified.issuerPub !== ownerPub ||
+                    verified.issuedAt !== payload.issuedAt || verified.expiresAt !== payload.expiresAt) return null;
+                if (payload.expiresAt !== 0 && payload.expiresAt <= Date.now()) return null;
+                return payload;
             },
 
             setOwnProfile: function(profile) {
@@ -1463,6 +1548,13 @@
             activateGunAccount: async function(username, authentication = {}, isNewAccount = false) {
                 const pub = this.gunUser?.is?.pub || this.gunUser?._?.sea?.pub || authentication?.pub;
                 if (typeof pub !== 'string' || !pub) throw new Error('Gun did not return a valid public account key.');
+                const ban = await this.checkModerationBan(username, pub);
+                if (ban) {
+                    this.gunUser?.leave?.();
+                    throw new Error(ban.expiresAt
+                        ? `This account is temporarily banned until ${new Date(ban.expiresAt).toLocaleString()}.`
+                        : 'This account has been permanently banned.');
+                }
                 this.knownUserPubs.set(username, pub);
                 this.state.currentUser = { username, pub };
                 this.gunProfileNode = this.gunUser.get('blocktalk').get('profile');
@@ -1548,62 +1640,113 @@
                 isSubmitting: false,
                 lastRecoveryKey: '',
 
-                postRecoveryAction: async function(action, fields) {
-                    const response = await fetch('/.netlify/functions/recovery', {
-                        method: 'POST',
-                        headers: { 'content-type': 'application/json' },
-                        body: JSON.stringify({ action, ...fields })
-                    });
-                    const result = await response.json();
-                    if (!response.ok) throw new Error(result.error || 'Recovery request failed.');
-                    return result;
+                deriveRecoveryKey: async function(recoveryKey, salt) {
+                    const material = await window.crypto.subtle.importKey(
+                        'raw',
+                        new TextEncoder().encode(recoveryKey),
+                        'PBKDF2',
+                        false,
+                        ['deriveKey']
+                    );
+                    return window.crypto.subtle.deriveKey(
+                        { name: 'PBKDF2', salt, iterations: 210000, hash: 'SHA-256' },
+                        material,
+                        { name: 'AES-GCM', length: 256 },
+                        false,
+                        ['encrypt', 'decrypt']
+                    );
+                },
+
+                createRecoveryBundle: async function(username, recoveryKey, pair) {
+                    if (!pair?.pub || !pair?.priv || !pair?.epub || !pair?.epriv) {
+                        throw new Error('The account key pair is unavailable. Sign in again and retry.');
+                    }
+                    const salt = window.crypto.getRandomValues(new Uint8Array(16));
+                    const iv = window.crypto.getRandomValues(new Uint8Array(12));
+                    const key = await this.deriveRecoveryKey(recoveryKey, salt);
+                    const plaintext = new TextEncoder().encode(JSON.stringify(pair));
+                    const ciphertext = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext);
+                    return {
+                        version: 1,
+                        username,
+                        kdf: 'PBKDF2-SHA256',
+                        iterations: 210000,
+                        cipher: 'AES-256-GCM',
+                        salt: this.toBase64(salt),
+                        iv: this.toBase64(iv),
+                        ciphertext: this.toBase64(new Uint8Array(ciphertext))
+                    };
+                },
+
+                recoverPairFromBundle: async function(bundle, recoveryKey, username) {
+                    if (!bundle || bundle.version !== 1 || bundle.username?.toLowerCase() !== username.toLowerCase() ||
+                        bundle.kdf !== 'PBKDF2-SHA256' || bundle.cipher !== 'AES-256-GCM' ||
+                        bundle.iterations !== 210000 || !bundle.salt || !bundle.iv || !bundle.ciphertext) {
+                        throw new Error('This recovery file is invalid or belongs to a different username.');
+                    }
+                    const salt = this.fromBase64(bundle.salt);
+                    const iv = this.fromBase64(bundle.iv);
+                    const ciphertext = this.fromBase64(bundle.ciphertext);
+                    const key = await this.deriveRecoveryKey(recoveryKey, salt);
+                    let pair;
+                    try {
+                        const plaintext = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+                        pair = JSON.parse(new TextDecoder().decode(plaintext));
+                    } catch {
+                        throw new Error('The recovery key is incorrect or the recovery file is damaged.');
+                    }
+                    if (pair?.pub === undefined || typeof pair.priv !== 'string' ||
+                        typeof pair.epub !== 'string' || typeof pair.epriv !== 'string') {
+                        throw new Error('The recovery file does not contain a valid account key pair.');
+                    }
+                    return pair;
+                },
+
+                toBase64: function(bytes) {
+                    let binary = '';
+                    bytes.forEach(byte => binary += String.fromCharCode(byte));
+                    return btoa(binary);
+                },
+
+                fromBase64: function(value) {
+                    const binary = atob(value);
+                    return Uint8Array.from(binary, character => character.charCodeAt(0));
+                },
+
+                downloadRecoveryBundle: function(bundle) {
+                    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `blocktalk-${bundle.username}-recovery.json`;
+                    link.click();
+                    setTimeout(() => URL.revokeObjectURL(url), 0);
                 },
 
                 enrollRecoveryKey: async function(username, recoveryKey, pair) {
-                    const payload = { username, pub: pair?.pub, timestamp: Date.now() };
-                    const signature = await BlockTalk.getGunSea().sign(JSON.stringify(payload), pair);
-                    if (typeof signature !== 'string') throw new Error('Could not sign the recovery enrollment.');
-                    return this.postRecoveryAction('enroll', { recoveryKey, payload, signature, pair });
+                    const bundle = await this.createRecoveryBundle(username, recoveryKey, pair);
+                    this.downloadRecoveryBundle(bundle);
+                    return { message: 'Encrypted recovery file downloaded. Store it separately from your recovery key.' };
                 },
 
                 authenticateWithKey: async function(username, accessKey) {
                     BlockTalk.initializeGun();
-                    try {
-                        const result = await this.postRecoveryAction('authenticate', {
-                            username,
-                            recoveryKey: accessKey
+                    const user = BlockTalk.gun.user();
+                    BlockTalk.gunUser = user;
+                    return new Promise((resolve, reject) => {
+                        const timeout = setTimeout(() => reject(new Error('Key sign-in timed out. Check your connection and try again.')), 20000);
+                        user.auth(username, accessKey, acknowledgement => {
+                            clearTimeout(timeout);
+                            if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
+                            else resolve(acknowledgement);
                         });
-                        const registeredPub = await BlockTalk.lookupUserPub(result.username);
-                        if (!registeredPub || registeredPub !== result.pair?.pub) {
-                            throw new Error('That access key does not match this username.');
-                        }
-                        const user = BlockTalk.gun.user();
-                        BlockTalk.gunUser = user;
-                        return await new Promise((resolve, reject) => {
-                            const timeout = setTimeout(() => reject(new Error('Key sign-in timed out. Check your connection and try again.')), 20000);
-                            user.auth(result.pair, acknowledgement => {
-                                clearTimeout(timeout);
-                                if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
-                                else resolve(acknowledgement);
-                            });
-                        });
-                    } catch (recoveryError) {
-                        const user = BlockTalk.gun.user();
-                        BlockTalk.gunUser = user;
-                        return new Promise((resolve, reject) => {
-                            const timeout = setTimeout(() => reject(recoveryError), 20000);
-                            user.auth(username, accessKey, acknowledgement => {
-                                clearTimeout(timeout);
-                                if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
-                                else resolve(acknowledgement);
-                            });
-                        });
-                    }
+                    });
                 },
 
                 requestPasswordRecovery: async function() {
                     const username = document.getElementById('recoveryUsername').value.trim();
                     const recoveryKey = document.getElementById('accountRecoveryKey').value.trim();
+                    const recoveryFile = document.getElementById('accountRecoveryFile').files[0];
                     const status = document.getElementById('accountRecoveryStatus');
                     status.textContent = '';
                     if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username)) {
@@ -1614,12 +1757,33 @@
                         status.textContent = 'Enter your 32-character recovery key.';
                         return;
                     }
+                    if (!recoveryFile) {
+                        status.textContent = 'Choose your encrypted recovery file.';
+                        return;
+                    }
                     const button = document.getElementById('completeAccountRecovery');
                     button.disabled = true;
                     try {
-                        const result = await this.authenticateWithKey(username, recoveryKey);
-                        await BlockTalk.activateGunAccount(result?.alias || username, BlockTalk.gunUser.is || {});
+                        let bundle;
+                        try {
+                            bundle = JSON.parse(await recoveryFile.text());
+                        } catch {
+                            throw new Error('The recovery file must be valid JSON.');
+                        }
+                        const pair = await this.recoverPairFromBundle(bundle, recoveryKey, username);
+                        const user = BlockTalk.gun.user();
+                        BlockTalk.gunUser = user;
+                        await new Promise((resolve, reject) => {
+                            const timeout = setTimeout(() => reject(new Error('Recovery sign-in timed out. Check your connection and try again.')), 20000);
+                            user.auth(pair, acknowledgement => {
+                                clearTimeout(timeout);
+                                if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
+                                else resolve(acknowledgement);
+                            });
+                        });
+                        await BlockTalk.activateGunAccount(username, user.is || {});
                         document.getElementById('accountRecoveryKey').value = '';
+                        document.getElementById('accountRecoveryFile').value = '';
                         status.textContent = 'Account recovered.';
                     } catch (error) {
                         BlockTalk.gunUser?.leave?.();
@@ -2398,6 +2562,7 @@
                     document.getElementById('serversPanel').classList.remove('active');
                     document.getElementById('appContainer').classList.toggle('games-mode', tabName === 'games');
                     document.getElementById('gamesStage').classList.toggle('hidden', tabName !== 'games');
+                    document.getElementById('editorStage').classList.toggle('hidden', tabName !== 'editor');
 
                     if (tabName === 'friends') {
                         document.getElementById('friendsPanel').classList.add('active');
@@ -2473,6 +2638,7 @@
     </script>
     <script src="https://cdn.jsdelivr.net/npm/gun@0.2020.1240/gun.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gun@0.2020.1240/sea.js"></script>
+    <script src="jokes.js"></script>
     <script src="app.js" defer></script>
     <script>
         //notes Register the service worker that caches and serves the BlockTalk application shell.

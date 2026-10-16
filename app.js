@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const seenServerVoiceSignalIds = new Set();
     const MAX_DIRECT_PACKET_LENGTH = 900000;
     const MAX_RENDERED_SERVER_MESSAGES = 500;
-    const MAX_IMAGE_DATA_URL_LENGTH = 360000;
+    const MAX_IMAGE_DATA_URL_LENGTH = 500000;
     const MAX_VOICE_DATA_URL_LENGTH = 260000;
     const OWNER_USERNAME = 'itsterminal4404';
     const FOUNDER_BADGE_CUTOFF = Date.UTC(2027, 0, 1);
@@ -59,6 +59,53 @@ document.addEventListener('DOMContentLoaded', () => {
     [messageSentAudio, messageReceivedAudio, callRingtoneAudio].forEach(audio => {
         audio.preload = 'auto';
     });
+
+    async function writeModerationAction(action) {
+        const status = document.getElementById('moderationStatus');
+        const banButton = document.getElementById('banUserButton');
+        const unbanButton = document.getElementById('unbanUserButton');
+        if (app.state.currentUser?.username !== OWNER_USERNAME || !badgeTarget ||
+            badgeTarget.username === OWNER_USERNAME) {
+            status.textContent = `Only ${OWNER_USERNAME} can moderate other accounts.`;
+            return;
+        }
+        banButton.disabled = true;
+        unbanButton.disabled = true;
+        try {
+            const pair = app.gunUser?._?.sea;
+            const ownerPub = await app.lookupUserPub(OWNER_USERNAME);
+            if (!pair?.pub || pair.pub !== ownerPub) throw new Error('The owner account key could not be verified.');
+            const duration = document.getElementById('moderationDuration').value;
+            const expiresAt = action === 'ban'
+                ? (duration === 'permanent' ? 0 : Date.now() + Number(duration))
+                : 0;
+            const payload = {
+                action,
+                target: badgeTarget.username,
+                targetPub: badgeTarget.publicKey,
+                issuer: OWNER_USERNAME,
+                issuerPub: ownerPub,
+                issuedAt: Date.now(),
+                expiresAt
+            };
+            const signature = await app.getGunSea().sign(JSON.stringify(payload), pair);
+            if (typeof signature !== 'string') throw new Error('The moderation action could not be signed.');
+            await app.writeGunNode(
+                gun.get('blocktalk-v1').get('moderation').get('bans').get(badgeTarget.publicKey),
+                { payload, signature }
+            );
+            status.textContent = action === 'ban'
+                ? (expiresAt ? `@${badgeTarget.username} is banned until ${new Date(expiresAt).toLocaleString()}.` : `@${badgeTarget.username} is permanently banned.`)
+                : `@${badgeTarget.username} is unbanned.`;
+        } catch (error) {
+            status.textContent = `Could not update moderation: ${error.message}`;
+        } finally {
+            banButton.disabled = !badgeTarget || badgeTarget.username === OWNER_USERNAME;
+            unbanButton.disabled = !badgeTarget || badgeTarget.username === OWNER_USERNAME;
+        }
+    }
+    document.getElementById('banUserButton').addEventListener('click', () => writeModerationAction('ban'));
+    document.getElementById('unbanUserButton').addEventListener('click', () => writeModerationAction('unban'));
 
     function initializeGames() {
         const board = document.getElementById('gameBoard');
@@ -147,6 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (color && target.length < 3 && (!target.length || target[target.length - 1] === color)) {
                             target.push(source.pop());
                         }
+
                         selected = -1;
                     }
                     render();
@@ -544,6 +592,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let pendingProfilePictureDataUrl = '';
     let profilePictureProcessing = false;
     let profilePictureSelectionGeneration = 0;
+    let profilePictureCropState = null;
     let profileModalGeneration = 0;
     let badgeTarget = null;
     let isMuted = false;
@@ -1243,7 +1292,37 @@ document.addEventListener('DOMContentLoaded', () => {
         return pendingMessageFlush;
     }
 
+    function showPresetJoke(content) {
+        if (typeof content !== 'string' || content.trim().toLowerCase() !== '@tellmeajoke') return false;
+        const jokes = window.BlockTalkPresetJokes;
+        if (!Array.isArray(jokes) || jokes.length !== 1000) {
+            setMediaStatus('The local joke bank is unavailable. Refresh the app and try again.');
+            return true;
+        }
+        const conversationKey = activeServer
+            ? `server:${activeServer.id}`
+            : app.state.currentConversation;
+        if (!conversationKey) {
+            setMediaStatus('Choose a direct conversation or server before asking for a joke.');
+            return true;
+        }
+        const randomBytes = new Uint32Array(1);
+        window.crypto.getRandomValues(randomBytes);
+        const messages = app.state.messages[conversationKey] || (app.state.messages[conversationKey] = []);
+        messages.push({
+            id: `local-joke-${Date.now()}-${randomBytes[0]}`,
+            sender: 'BlockTalk',
+            content: jokes[randomBytes[0] % jokes.length],
+            timestamp: Date.now(),
+            status: 'read'
+        });
+        app.renderMessages();
+        document.getElementById('messageInput').value = '';
+        return true;
+    }
+
     async function sendDirectMessage(content) {
+        if (showPresetJoke(content)) return;
         if (activeServer) return sendServerMessage(content);
         const peerId = app.state.currentConversation;
         if (!peerId) {
@@ -2014,6 +2093,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function sendServerMessage(content) {
+        if (showPresetJoke(content)) return;
         if (!activeServer || !activeServerKey || !activeServerObserver) {
             setMediaStatus('Open a private server before sending.');
             return;
@@ -2258,10 +2338,13 @@ document.addEventListener('DOMContentLoaded', () => {
         settingsPfpUrl.value = isEmbeddedPicture ? '' : profile.profilePictureUrl || '';
         document.getElementById('settings-bio').value = profile.bio;
         pendingProfilePictureDataUrl = isEmbeddedPicture ? profile.profilePictureUrl : '';
+        profilePictureCropState?.bitmap?.close?.();
+        profilePictureCropState = null;
+        document.getElementById('profilePictureCrop').classList.add('hidden');
         profilePictureProcessing = false;
         document.getElementById('profilePictureDropzoneText').textContent =
             isEmbeddedPicture ? 'Current picture will be kept (drop a replacement here)' :
-                'Drop a picture here or browse (WebP/JPEG/PNG, max 160 KB)';
+                'Drop a picture here or browse (PNG/JPEG/WebP, up to 10 MB)';
         settingsTheme.value = profile.theme || 'terminal';
         syncAudioPreferenceControls();
         settingsStatus.textContent = '';
@@ -2277,6 +2360,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function closeSettings() {
+        profilePictureCropState?.bitmap?.close?.();
+        profilePictureCropState = null;
+        document.getElementById('profilePictureCrop').classList.add('hidden');
         syncUserPreferences();
         document.getElementById('currentPassword').value = '';
         document.getElementById('newPassword').value = '';
@@ -2294,7 +2380,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const rawUrl = settingsPfpUrl.value.trim();
         let profilePictureUrl = '';
-        if (pendingProfilePictureDataUrl) {
+        if (profilePictureCropState) {
+            try {
+                profilePictureUrl = await createCroppedProfilePicture();
+            } catch (error) {
+                settingsStatus.textContent = error.message;
+                return;
+            }
+        } else if (pendingProfilePictureDataUrl) {
             profilePictureUrl = pendingProfilePictureDataUrl;
         } else if (rawUrl) {
             try {
@@ -2316,6 +2409,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             saveAudioPreferences();
             await app.updateProfile({ bio, profilePictureUrl, theme });
+            profilePictureCropState?.bitmap?.close?.();
+            profilePictureCropState = null;
+            document.getElementById('profilePictureCrop').classList.add('hidden');
             syncUserPreferences();
             settingsStatus.textContent = 'Settings saved.';
         } catch (error) {
@@ -2421,19 +2517,72 @@ document.addEventListener('DOMContentLoaded', () => {
     async function setPendingProfilePicture(file) {
         const generation = ++profilePictureSelectionGeneration;
         profilePictureProcessing = true;
-        settingsStatus.textContent = 'Compressing profile picture...';
+        settingsStatus.textContent = 'Preparing profile picture crop...';
         try {
-            const picture = await compressImageFile(file, 160 * 1024, 512);
-            if (generation !== profilePictureSelectionGeneration) return;
-            pendingProfilePictureDataUrl = picture.dataUrl;
+            if (!file.type.startsWith('image/') || file.size > 10 * 1024 * 1024) {
+                throw new Error('Choose an image up to 10 MB.');
+            }
+            if (typeof window.createImageBitmap !== 'function') {
+                throw new Error('This browser cannot safely prepare profile pictures.');
+            }
+            const bitmap = await window.createImageBitmap(file);
+            if (generation !== profilePictureSelectionGeneration) {
+                bitmap.close();
+                return;
+            }
+            profilePictureCropState = {
+                bitmap,
+                zoom: 1,
+                offsetX: 0,
+                offsetY: 0,
+                fileName: file.name
+            };
+            renderProfilePictureCrop();
+            document.getElementById('profilePictureCrop').classList.remove('hidden');
             settingsPfpUrl.value = '';
-            document.getElementById('profilePictureDropzoneText').textContent = `${file.name} is ready (compressed).`;
+            pendingProfilePictureDataUrl = '';
+            document.getElementById('profilePictureDropzoneText').textContent = `${file.name} is ready to crop.`;
             settingsStatus.textContent = '';
         } catch (error) {
             if (generation === profilePictureSelectionGeneration) settingsStatus.textContent = error.message;
         } finally {
             if (generation === profilePictureSelectionGeneration) profilePictureProcessing = false;
         }
+    }
+
+    function renderProfilePictureCrop() {
+        const state = profilePictureCropState;
+        const canvas = document.getElementById('profilePictureCropCanvas');
+        if (!state || !canvas) return;
+        const context = canvas.getContext('2d');
+        const side = Math.min(state.bitmap.width, state.bitmap.height) / state.zoom;
+        const centerX = state.bitmap.width / 2 + state.offsetX;
+        const centerY = state.bitmap.height / 2 + state.offsetY;
+        const sourceX = Math.max(0, Math.min(state.bitmap.width - side, centerX - side / 2));
+        const sourceY = Math.max(0, Math.min(state.bitmap.height - side, centerY - side / 2));
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(state.bitmap, sourceX, sourceY, side, side, 0, 0, canvas.width, canvas.height);
+    }
+
+    async function createCroppedProfilePicture() {
+        const state = profilePictureCropState;
+        if (!state) return '';
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        const context = canvas.getContext('2d');
+        const side = Math.min(state.bitmap.width, state.bitmap.height) / state.zoom;
+        const centerX = state.bitmap.width / 2 + state.offsetX;
+        const centerY = state.bitmap.height / 2 + state.offsetY;
+        const sourceX = Math.max(0, Math.min(state.bitmap.width - side, centerX - side / 2));
+        const sourceY = Math.max(0, Math.min(state.bitmap.height - side, centerY - side / 2));
+        context.drawImage(state.bitmap, sourceX, sourceY, side, side, 0, 0, 512, 512);
+        for (let quality = 0.86; quality >= 0.35; quality -= 0.08) {
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', quality));
+            if (!blob) throw new Error('The browser could not create the cropped picture.');
+            if (blob.size <= 320 * 1024) return readFileAsDataUrl(blob);
+        }
+        throw new Error('The cropped profile picture is still too large. Try a simpler image.');
     }
     profilePictureFile.addEventListener('change', () => {
         const [file] = profilePictureFile.files || [];
@@ -2444,6 +2593,9 @@ document.addEventListener('DOMContentLoaded', () => {
         profilePictureSelectionGeneration += 1;
         profilePictureProcessing = false;
         pendingProfilePictureDataUrl = '';
+        profilePictureCropState?.bitmap?.close?.();
+        profilePictureCropState = null;
+        document.getElementById('profilePictureCrop').classList.add('hidden');
     });
     ['dragenter', 'dragover'].forEach(type => profilePictureDropzone.addEventListener(type, event => {
         event.preventDefault();
@@ -2457,6 +2609,40 @@ document.addEventListener('DOMContentLoaded', () => {
         const [file] = event.dataTransfer?.files || [];
         if (file) setPendingProfilePicture(file);
     });
+    const profilePictureCropCanvas = document.getElementById('profilePictureCropCanvas');
+    const profilePictureZoom = document.getElementById('profilePictureZoom');
+    const resetProfilePictureCrop = document.getElementById('resetProfilePictureCrop');
+    let cropPointer = null;
+    profilePictureZoom.addEventListener('input', () => {
+        if (!profilePictureCropState) return;
+        profilePictureCropState.zoom = Number(profilePictureZoom.value);
+        renderProfilePictureCrop();
+    });
+    resetProfilePictureCrop.addEventListener('click', () => {
+        if (!profilePictureCropState) return;
+        profilePictureCropState.zoom = 1;
+        profilePictureCropState.offsetX = 0;
+        profilePictureCropState.offsetY = 0;
+        profilePictureZoom.value = '1';
+        renderProfilePictureCrop();
+    });
+    profilePictureCropCanvas.addEventListener('pointerdown', event => {
+        if (!profilePictureCropState) return;
+        cropPointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+        profilePictureCropCanvas.setPointerCapture(event.pointerId);
+    });
+    profilePictureCropCanvas.addEventListener('pointermove', event => {
+        if (!profilePictureCropState || !cropPointer || cropPointer.id !== event.pointerId) return;
+        const scale = profilePictureCropState.bitmap.width / profilePictureCropCanvas.clientWidth;
+        profilePictureCropState.offsetX -= (event.clientX - cropPointer.x) * scale / profilePictureCropState.zoom;
+        profilePictureCropState.offsetY -= (event.clientY - cropPointer.y) * scale / profilePictureCropState.zoom;
+        cropPointer.x = event.clientX;
+        cropPointer.y = event.clientY;
+        renderProfilePictureCrop();
+    });
+    ['pointerup', 'pointercancel'].forEach(type => profilePictureCropCanvas.addEventListener(type, () => {
+        cropPointer = null;
+    }));
     settingsTheme.addEventListener('change', () => applyTheme(settingsTheme.value));
     document.getElementById('settings-ringtone-volume').addEventListener('input', event => {
         document.getElementById('settings-ringtone-volume-value').textContent = `${event.currentTarget.value}%`;
@@ -2856,11 +3042,17 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('badgeTargetStatus').textContent = '';
         document.getElementById('badgeTargetUsername').value = '';
         document.getElementById('awardBadgeButton').disabled = true;
+        document.getElementById('banUserButton').disabled = true;
+        document.getElementById('unbanUserButton').disabled = true;
+        document.getElementById('moderationStatus').textContent = '';
         setProfileModalAvatar(document.getElementById('profileModalPicture'), username, '');
         modal.classList.remove('hidden');
         try {
             const publicKey = await app.lookupUserPub(username);
             if (!publicKey) throw new Error('No registered account was found for that username.');
+            badgeTarget = { username, publicKey };
+            document.getElementById('banUserButton').disabled = username === OWNER_USERNAME;
+            document.getElementById('unbanUserButton').disabled = username === OWNER_USERNAME;
             const profile = await app.readProfileByPub(publicKey);
             if (generation !== profileModalGeneration) return;
             setProfileModalAvatar(document.getElementById('profileModalPicture'), username, profile.profilePictureUrl);
@@ -2940,6 +3132,8 @@ document.addEventListener('DOMContentLoaded', () => {
             badgeTarget = { username, publicKey };
             status.textContent = `Found @${username}. Choose a badge or title to award.`;
             button.disabled = false;
+            document.getElementById('banUserButton').disabled = username === OWNER_USERNAME;
+            document.getElementById('unbanUserButton').disabled = username === OWNER_USERNAME;
         } catch (error) {
             if (input.value.trim() !== username) return;
             status.textContent = error.message;
@@ -2948,7 +3142,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('badgeTargetUsername').addEventListener('input', () => {
         badgeTarget = null;
         document.getElementById('awardBadgeButton').disabled = true;
+        document.getElementById('banUserButton').disabled = true;
+        document.getElementById('unbanUserButton').disabled = true;
         document.getElementById('badgeTargetStatus').textContent = '';
+        document.getElementById('moderationStatus').textContent = '';
     });
     document.getElementById('badgeTargetUsername').addEventListener('keydown', event => {
         if (event.key !== 'Enter') return;
@@ -3560,6 +3757,91 @@ document.addEventListener('DOMContentLoaded', () => {
         updateCallAvailability();
         return result;
     };
+    function initializeEditor() {
+        const canvas = document.getElementById('editorCanvas');
+        const typeSelect = document.getElementById('editorAssetType');
+        const colorInput = document.getElementById('editorColor');
+        const eraserButton = document.getElementById('editorEraser');
+        const clearButton = document.getElementById('editorClear');
+        const importInput = document.getElementById('editorImport');
+        const downloadButton = document.getElementById('editorDownload');
+        const status = document.getElementById('editorStatus');
+        if (!canvas || !typeSelect || !colorInput || !eraserButton || !clearButton ||
+            !importInput || !downloadButton || !status) return;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        let erasing = false;
+        let painting = false;
+        const clear = () => {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            status.textContent = 'Canvas cleared. Click or drag to paint.';
+        };
+        typeSelect.addEventListener('change', () => {
+            canvas.height = typeSelect.value === 'cape' ? 32 : 64;
+            clear();
+            status.textContent = typeSelect.value === 'cape'
+                ? 'Cape canvas ready: 64×32 transparent PNG.'
+                : 'Skin canvas ready: standard 64×64 Minecraft layout.';
+        });
+        const paintAt = event => {
+            const bounds = canvas.getBoundingClientRect();
+            const x = Math.floor((event.clientX - bounds.left) * canvas.width / bounds.width);
+            const y = Math.floor((event.clientY - bounds.top) * canvas.height / bounds.height);
+            if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) return;
+            if (erasing) context.clearRect(x, y, 1, 1);
+            else {
+                context.fillStyle = colorInput.value;
+                context.fillRect(x, y, 1, 1);
+            }
+        };
+        eraserButton.addEventListener('click', () => {
+            erasing = !erasing;
+            eraserButton.textContent = `Eraser: ${erasing ? 'on' : 'off'}`;
+            eraserButton.setAttribute('aria-pressed', String(erasing));
+        });
+        clearButton.addEventListener('click', clear);
+        canvas.addEventListener('pointerdown', event => {
+            painting = true;
+            canvas.setPointerCapture(event.pointerId);
+            paintAt(event);
+        });
+        canvas.addEventListener('pointermove', event => { if (painting) paintAt(event); });
+        canvas.addEventListener('pointerup', () => { painting = false; });
+        canvas.addEventListener('pointercancel', () => { painting = false; });
+        importInput.addEventListener('change', () => {
+            const file = importInput.files[0];
+            if (!file) return;
+            const image = new Image();
+            image.onload = () => {
+                context.clearRect(0, 0, canvas.width, canvas.height);
+                context.imageSmoothingEnabled = false;
+                context.drawImage(image, 0, 0, canvas.width, canvas.height);
+                URL.revokeObjectURL(image.src);
+                status.textContent = `Imported ${file.name}; resized to ${canvas.width}×${canvas.height}.`;
+            };
+            image.onerror = () => {
+                status.textContent = 'That file could not be read as a PNG.';
+                URL.revokeObjectURL(image.src);
+            };
+            image.src = URL.createObjectURL(file);
+            importInput.value = '';
+        });
+        downloadButton.addEventListener('click', () => {
+            canvas.toBlob(blob => {
+                if (!blob) {
+                    status.textContent = 'Could not create the PNG download.';
+                    return;
+                }
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `blocktalk-${typeSelect.value}.png`;
+                link.click();
+                setTimeout(() => URL.revokeObjectURL(url), 0);
+                status.textContent = `Downloaded ${typeSelect.value} PNG (${canvas.width}×${canvas.height}).`;
+            }, 'image/png');
+        });
+    }
+
     const originalLogout = app.logout;
     app.logout = async function(...args) {
         if (activeCall) finishCall(true);
@@ -3580,6 +3862,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     syncCallView();
     initializeGames();
+    initializeEditor();
     window.addEventListener('blocktalk:authenticated', () => {
         syncUserPreferences();
         renderServerList();

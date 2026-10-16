@@ -5,22 +5,46 @@ The MIT License for this project is in [LICENSE](./LICENSE).
 BlockTalk is a static browser chat app. Gun SEA handles account registration
 and key-based sign-in; account profiles, friend requests, presence, encrypted direct
 messages, invite-code group servers, and encrypted WebRTC call signaling
-synchronize through a public GunDB relay. Chat uses static browser files;
-recovery keys additionally use a Netlify Function and Netlify Blobs.
+synchronize through a public GunDB relay. Chat and account recovery use static
+browser files. Recovery files are encrypted locally and never uploaded by
+BlockTalk.
 
 ## Run locally or deploy
 
 Serve the repository root as static files, for example with
-`python -m http.server 8000`, then open `http://localhost:8000`. Netlify deploys
-the static app and recovery function from this repository. Installable
-PWA features and microphone access require HTTPS in production (localhost is
-allowed for local development).
-The current official deployment is `https://webblocktalk.netlify.app/`.
+`python -m http.server 8000`, then open `http://localhost:8000`. Netlify,
+GitHub Pages, Cloudflare Pages, or any other static host can serve the app.
+Installable PWA features and microphone access require HTTPS in production
+(localhost is allowed for local development).
 
 The interface theme can be changed in Settings between the original Terminal
 look, a rounded **Blocky & Bubbly** look, and a low-contrast **Secure &
 Incognito** look. These are visual preferences only; the incognito theme does
 not change network, account, or privacy behavior.
+
+## Minecraft skin and cape editor
+
+The authenticated **Skin Editor** tab includes a client-only pixel editor for
+standard 64×64 Minecraft skins and transparent 64×32 capes. Importing, drawing,
+and exporting happen in the browser; files are never uploaded. Exported PNGs
+can be used with compatible Eaglercraft skin or cape upload tools.
+
+Typing `@tellmeajoke` in a direct conversation or private server displays one
+of 1,000 local preset jokes. The joke command and response stay on the current
+device and are not sent to Gun.
+
+## Owner moderation and profile pictures
+
+The `itsterminal4404` owner account has signed moderation controls in user
+profiles. It can issue permanent bans, one-hour, 24-hour, or seven-day bans,
+and unban accounts. Clients verify the owner's Gun SEA signature before
+allowing an account into the app; temporary bans stop applying after their
+expiration. This is client-enforced moderation, not a replacement for
+controlling the Gun relays themselves.
+
+Profile pictures can be selected or dropped up to 10 MB. Before saving, the
+image is cropped inside a circular, draggable preview with zoom controls.
+Only the compressed square crop is stored in the public profile.
 
 ## Games
 
@@ -41,10 +65,13 @@ relay can affect account discovery and availability.
 
 ### Recovery key service
 
-Recovery keys are stored as hashes, while each encrypted Gun key pair is
-stored in Netlify Blobs using that account's recovery key. No email provider,
-Bird API key, or recovery encryption environment variable is required. The
-recovery key is never stored in a public Gun profile or sent by email.
+Recovery setup downloads a JSON recovery file containing the Gun key pair
+encrypted with AES-256-GCM. The recovery key is used with PBKDF2-SHA256
+(210,000 iterations) to derive the encryption key. The recovery file and
+32-character key must be kept separately and are both required to recover an
+account. The file is created, decrypted, and used entirely in the browser; it
+is never sent to Gun or a hosting provider. Losing either the file or the key
+means the account cannot be recovered through this feature.
 
 ## Install and offline behavior
 

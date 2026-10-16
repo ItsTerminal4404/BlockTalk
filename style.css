@@ -965,6 +965,38 @@ body,
     color: var(--blue-bright);
 }
 
+.profile-picture-crop {
+    display: grid;
+    gap: 8px;
+    justify-items: start;
+    margin-top: 12px;
+}
+
+.profile-picture-crop.hidden {
+    display: none;
+}
+
+.profile-picture-crop-frame {
+    width: min(100%, 320px);
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    background: repeating-conic-gradient(#d9d9d9 0 25%, #fff 0 50%) 50% / 16px 16px;
+    cursor: grab;
+    touch-action: none;
+}
+
+.profile-picture-crop-frame:active {
+    cursor: grabbing;
+}
+
+#profilePictureCropCanvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    image-rendering: auto;
+}
+
 .my-pfp {
     cursor: pointer;
 }
@@ -1261,6 +1293,106 @@ body,
     background:
         radial-gradient(circle at 10% 0%, #16baff12, transparent 34%),
         var(--bg-main);
+}
+
+.editor-stage {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    height: 100%;
+    overflow: auto;
+    padding: 34px clamp(20px, 5vw, 72px);
+}
+
+.editor-stage.hidden {
+    display: none;
+}
+
+.editor-stage-header {
+    align-items: flex-start;
+    display: flex;
+    gap: 20px;
+    justify-content: space-between;
+}
+
+.editor-toolbar {
+    align-items: end;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 14px;
+}
+
+.editor-select-label,
+.editor-color-label {
+    color: var(--text-muted);
+    display: grid;
+    font-size: 0.72rem;
+    gap: 5px;
+    text-transform: uppercase;
+}
+
+.editor-select-label .settings-input {
+    min-width: 150px;
+}
+
+.editor-color-label input {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    height: 38px;
+    padding: 2px;
+    width: 58px;
+}
+
+.editor-file-label {
+    cursor: pointer;
+}
+
+.editor-layout {
+    align-items: flex-start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+}
+
+.editor-canvas-wrap {
+    background: repeating-conic-gradient(#d9d9d9 0 25%, #fff 0 50%) 50% / 20px 20px;
+    border: 1px solid var(--border-color);
+    padding: 14px;
+}
+
+#editorCanvas {
+    background: transparent;
+    border: 1px solid #333;
+    cursor: crosshair;
+    display: block;
+    image-rendering: pixelated;
+    height: min(68vw, 512px);
+    image-rendering: crisp-edges;
+    touch-action: none;
+    width: min(68vw, 512px);
+}
+
+.editor-help {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    max-width: 340px;
+    padding: 20px;
+}
+
+.editor-help h2 {
+    color: var(--text-primary);
+    font-size: 1rem;
+    margin: 0 0 12px;
+}
+
+.editor-warning {
+    border-left: 3px solid var(--accent);
+    padding-left: 12px;
 }
 
 .app-container.games-mode .games-stage {
