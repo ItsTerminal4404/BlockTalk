@@ -75,6 +75,7 @@
                 username,
                 accessKey: key
             }));
+            sessionStorage.setItem('blocktalk:authenticated', 'pending');
             if (isSignUp) {
                 generatedKey.value = key;
                 keyPanel.classList.add('show');

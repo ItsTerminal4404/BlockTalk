@@ -742,7 +742,7 @@
 </head>
 <body>
     <!-- ===== MAIN APPLICATION ===== -->
-    <div class="app-container" id="appContainer">
+    <div class="app-container hidden" id="appContainer">
         <!-- LEFT SIDEBAR -->
         <div class="sidebar">
             <div class="sidebar-brand">
@@ -752,7 +752,7 @@
                 <div class="user-info">
                     <div class="user-identity">
                         <div class="my-pfp" id="my-pfp" role="button" tabindex="0" aria-label="Open your profile">--</div>
-                        <div class="user-label" id="userLabel">As: user1</div>
+                        <div class="user-label" id="userLabel">Signing in…</div>
                     </div>
                 </div>
                 <div class="user-status">Connected to BlockTalk</div>
@@ -1491,6 +1491,7 @@
                 this.gunProfileNode = this.gunUser.get('blocktalk').get('profile');
                 this.gunPresenceNode = this.gunUser.get('blocktalk').get('presence');
                 this.state.isAuthenticated = true;
+                sessionStorage.setItem('blocktalk:authenticated', 'active');
                 this.showApp();
                 const savedProfile = await this.readGunNode(this.gunProfileNode);
                 const profile = this.createUserProfile(savedProfile || {});
@@ -1543,10 +1544,16 @@
 
             // ===== INITIALIZATION =====
             init: function() {
-                this.setupEventListeners();
                 try {
+                    this.setupEventListeners();
                     this.initializeGun();
                     const user = this.gunUser;
+                    const handoffValue = sessionStorage.getItem('blocktalk:auth-handoff');
+                    const authenticatedMarker = sessionStorage.getItem('blocktalk:authenticated');
+                    if (!handoffValue && !authenticatedMarker) {
+                        window.location.replace('signin.html');
+                        return;
+                    }
                     const completeAuthHandoff = () => {
                         let handoff;
                         try {
@@ -1567,14 +1574,16 @@
                             if (acknowledgement?.err) {
                                 console.error('Could not complete the authentication handoff:', acknowledgement.err);
                                 sessionStorage.removeItem('blocktalk:auth-handoff');
-                                window.location.replace('home.html');
+                                sessionStorage.removeItem('blocktalk:authenticated');
+                                window.location.replace('signin.html');
                                 return;
                             }
                             sessionStorage.removeItem('blocktalk:auth-handoff');
                             this.activateGunAccount(handoff.username, acknowledgement)
                                 .catch(error => {
                                     console.error('Could not activate the authenticated account:', error);
-                                    window.location.replace('home.html');
+                                    sessionStorage.removeItem('blocktalk:authenticated');
+                                    window.location.replace('signin.html');
                                 });
                         });
                         return true;
@@ -1591,7 +1600,8 @@
                             this.auth.isSignUpMode = false;
                             this.activateGunAccount(account.alias).catch(error => {
                                 console.error('Could not restore the BlockTalk session:', error);
-                                window.location.replace('home.html');
+                                sessionStorage.removeItem('blocktalk:authenticated');
+                                window.location.replace('signin.html');
                             });
                             window.dispatchEvent(new Event('blocktalk:auth-mode-changed'));
                         });
@@ -1600,7 +1610,8 @@
                     }
                 } catch (error) {
                     console.error('Could not initialize BlockTalk authentication:', error);
-                    window.location.replace('home.html');
+                    sessionStorage.removeItem('blocktalk:authenticated');
+                    window.location.replace('signin.html');
                 }
             },
 
@@ -2468,6 +2479,8 @@
                 this.database = { profiles: {}, calls: {} };
                 this.directMessageCache = Object.create(null);
                 this.directMessageReady = false;
+                sessionStorage.removeItem('blocktalk:authenticated');
+                sessionStorage.removeItem('blocktalk:auth-handoff');
                 this.state = {
                     isAuthenticated: false,
                     currentUser: null,
