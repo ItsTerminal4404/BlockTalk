@@ -46,6 +46,62 @@ h1 {
     font-size: 14px;
 }
 
+.welcome-page {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+}
+
+.welcome-box {
+    width: 100%;
+    max-width: 620px;
+    padding: 48px 40px;
+    text-align: center;
+}
+
+.welcome-logo {
+    width: 96px;
+    height: 96px;
+    margin-bottom: 16px;
+    object-fit: contain;
+}
+
+.welcome-title {
+    margin: 0 0 12px;
+    font-size: 38px;
+}
+
+.welcome-description {
+    max-width: 480px;
+    margin: 0 auto 28px;
+    color: #b9bbbe;
+    font-size: 16px;
+    line-height: 1.6;
+}
+
+.welcome-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.welcome-button {
+    min-width: 150px;
+    text-decoration: none;
+}
+
+.welcome-button.secondary {
+    background: #40444b;
+}
+
+.welcome-help {
+    margin-top: 24px;
+    color: #72767d;
+    font-size: 13px;
+}
+
 .form-group {
     margin-bottom: 16px;
 }

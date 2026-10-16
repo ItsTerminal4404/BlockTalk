@@ -61,77 +61,6 @@
             box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
         }
 
-        .welcome-container {
-            min-height: 100vh;
-            display: grid;
-            place-items: center;
-            padding: 24px;
-            background: linear-gradient(135deg, #0f0f14 0%, #1a1b1e 50%, #141518 100%);
-        }
-
-        .welcome-container.hidden {
-            display: none;
-        }
-
-        .welcome-box {
-            width: 100%;
-            max-width: 620px;
-            padding: 48px 40px;
-            text-align: center;
-            background: #2f3136;
-            border: 1px solid #202225;
-            border-radius: 12px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-        }
-
-        .welcome-logo {
-            width: 96px;
-            height: 96px;
-            object-fit: contain;
-            margin-bottom: 16px;
-        }
-
-        .welcome-title {
-            margin-bottom: 12px;
-            font-size: 38px;
-        }
-
-        .welcome-description {
-            max-width: 480px;
-            margin: 0 auto 28px;
-            color: #b9bbbe;
-            font-size: 16px;
-            line-height: 1.6;
-        }
-
-        .welcome-actions {
-            display: flex;
-            gap: 12px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .welcome-button {
-            min-width: 150px;
-            padding: 13px 24px;
-            color: #fff;
-            background: #5865f2;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: 600;
-            text-decoration: none;
-        }
-
-        .welcome-button.secondary {
-            background: #40444b;
-        }
-
-        .welcome-help {
-            margin-top: 24px;
-            color: #72767d;
-            font-size: 13px;
-        }
-
         .auth-header {
             text-align: center;
             margin-bottom: 28px;
@@ -812,22 +741,6 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <main class="welcome-container" id="welcomeContainer">
-        <section class="welcome-box">
-            <img class="welcome-logo" src="logo.png" alt="BlockTalk logo">
-            <h1 class="welcome-title">Welcome to BlockTalk</h1>
-            <p class="welcome-description">
-                Private, encrypted messaging and calls in your browser. Sign in with your access key,
-                or create an account to receive one.
-            </p>
-            <div class="welcome-actions">
-                <a class="welcome-button" href="signin.html">Sign In</a>
-                <a class="welcome-button secondary" href="signup.html">Sign Up</a>
-            </div>
-            <p class="welcome-help">Your access key is generated during sign-up and is required for future sign-ins.</p>
-        </section>
-    </main>
-
     <!-- ===== AUTHENTICATION GATEWAY ===== -->
     <div class="auth-container hidden" id="authContainer">
         <div class="auth-box">
@@ -1702,22 +1615,22 @@
                             const account = user.is;
                             if (this.state.isAuthenticated) return;
                             if (!account?.alias || !account?.pub) {
-                                this.showWelcome();
+                                window.location.replace('home.html');
                                 return;
                             }
                             this.auth.isSignUpMode = false;
                             this.activateGunAccount(account.alias).catch(error => {
                                 console.error('Could not restore the BlockTalk session:', error);
-                                this.showWelcome();
+                                window.location.replace('home.html');
                             });
                             window.dispatchEvent(new Event('blocktalk:auth-mode-changed'));
                         });
                     } else {
-                        this.showWelcome();
+                        window.location.replace('home.html');
                     }
                 } catch (error) {
                     console.error('Could not initialize BlockTalk authentication:', error);
-                    this.showWelcome();
+                    window.location.replace('home.html');
                 }
             },
 
@@ -2200,17 +2113,10 @@
             },
 
             showAuth: function() {
-                this.showWelcome();
-            },
-
-            showWelcome: function() {
-                document.getElementById('welcomeContainer').classList.remove('hidden');
-                document.getElementById('authContainer').classList.add('hidden');
-                document.getElementById('appContainer').classList.add('hidden');
+                window.location.replace('home.html');
             },
 
             showApp: function() {
-                document.getElementById('welcomeContainer').classList.add('hidden');
                 document.getElementById('authContainer').classList.add('hidden');
                 document.getElementById('appContainer').classList.remove('hidden');
                 document.getElementById('userLabel').textContent = `As: ${this.state.currentUser.username}`;
@@ -2605,7 +2511,7 @@
                     onlineUsers: new Set(),
                     typingUsers: {}
                 };
-                this.showWelcome();
+                window.location.replace('home.html');
             }
         };
 
