@@ -742,7 +742,7 @@
 </head>
 <body>
     <!-- ===== AUTHENTICATION GATEWAY ===== -->
-    <div class="auth-container" id="authContainer">
+    <div class="auth-container hidden" id="authContainer">
         <div class="auth-box">
             <div class="auth-header">
                 <img class="brand-logo brand-logo-auth" src="logo.png" alt="BlockTalk logo">
@@ -1607,23 +1607,30 @@
             // ===== INITIALIZATION =====
             init: function() {
                 this.setupEventListeners();
-                this.renderUI();
                 try {
                     this.initializeGun();
                     const user = this.gunUser;
                     if (typeof user.recall === 'function') {
                         user.recall({}, () => {
                             const account = user.is;
-                            if (this.state.isAuthenticated || !account?.alias || !account?.pub) return;
+                            if (this.state.isAuthenticated) return;
+                            if (!account?.alias || !account?.pub) {
+                                window.location.replace('signin.html');
+                                return;
+                            }
                             this.auth.isSignUpMode = false;
                             this.activateGunAccount(account.alias).catch(error => {
-                                this.auth.showError('passwordError', error.message);
+                                console.error('Could not restore the BlockTalk session:', error);
+                                window.location.replace('signin.html');
                             });
                             window.dispatchEvent(new Event('blocktalk:auth-mode-changed'));
                         });
+                    } else {
+                        window.location.replace('signin.html');
                     }
                 } catch (error) {
-                    this.auth.showError('passwordError', error.message);
+                    console.error('Could not initialize BlockTalk authentication:', error);
+                    window.location.replace('signin.html');
                 }
             },
 
@@ -2505,14 +2512,7 @@
                     onlineUsers: new Set(),
                     typingUsers: {}
                 };
-                this.showAuth();
-                this.auth.isSignUpMode = true;
-                document.getElementById('authForm').reset();
-                document.getElementById('authPasswordGroup').style.display = 'none';
-                document.getElementById('confirmPasswordGroup').style.display = 'none';
-                document.getElementById('authPassword').required = false;
-                document.getElementById('authConfirmPassword').required = false;
-                window.dispatchEvent(new Event('blocktalk:auth-mode-changed'));
+                window.location.replace('signin.html');
             }
         };
 

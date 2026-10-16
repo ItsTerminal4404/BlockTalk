@@ -12,7 +12,8 @@ BlockTalk.
 ## Run locally or deploy
 
 Serve the repository root as static files, for example with
-`python -m http.server 8000`, then open `http://localhost:8000`. Netlify,
+`python -m http.server 8000`, then open `http://localhost:8000`. New users
+sign up at `/signup.html`; existing users sign in at `/signin.html`. Netlify,
 GitHub Pages, Cloudflare Pages, or any other static host can serve the app.
 Installable PWA features and microphone access require HTTPS in production
 (localhost is allowed for local development).

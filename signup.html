@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="logo.png">
+    <title>Sign up - BlockTalk</title>
+    <link rel="stylesheet" href="auth-page.css">
+</head>
+<body data-auth-mode="signup">
+    <main class="auth-box">
+        <header class="auth-header">
+            <img class="brand-logo" src="logo.png" alt="BlockTalk logo">
+            <h1>Create your BlockTalk account</h1>
+            <p class="subtitle">Choose a username. Your access key is generated for you.</p>
+        </header>
+        <form id="authForm">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input id="username" type="text" minlength="3" maxlength="32" autocomplete="username" required>
+            </div>
+            <p class="help">Sign-up does not require an access key. BlockTalk creates one after your account is registered.</p>
+            <p class="error" id="error" role="alert"></p>
+            <button class="auth-button" id="submitButton" type="submit">Create account</button>
+        </form>
+        <section class="key-panel" id="keyPanel">
+            <strong>Save your access key</strong>
+            <p class="help">This is the only key you can use to sign in. Store it somewhere safe.</p>
+            <div class="key-value">
+                <input id="generatedKey" type="text" readonly aria-label="Generated access key">
+                <button class="copy-button" id="copyKey" type="button">Copy</button>
+            </div>
+            <button class="auth-button" id="continueButton" type="button">Continue to BlockTalk</button>
+        </section>
+        <p class="auth-toggle">Already have an account? <a href="signin.html">Sign in</a></p>
+    </main>
+    <script src="https://cdn.jsdelivr.net/npm/gun@0.2020.1240/gun.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gun@0.2020.1240/sea.js"></script>
+    <script src="auth-page.js"></script>
+</body>
+</html>
