@@ -1603,106 +1603,9 @@
             },
 
             // ===== AUTHENTICATION MODULE =====
-            generateRecoveryKey: function() {
-                const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-                const values = new Uint8Array(32);
-                window.crypto.getRandomValues(values);
-                return Array.from(values, value => alphabet[value % alphabet.length]).join('');
-            },
-
             auth: {
                 isSignUpMode: true,
                 isSubmitting: false,
-                lastRecoveryKey: '',
-
-                deriveRecoveryKey: async function(recoveryKey, salt) {
-                    const material = await window.crypto.subtle.importKey(
-                        'raw',
-                        new TextEncoder().encode(recoveryKey),
-                        'PBKDF2',
-                        false,
-                        ['deriveKey']
-                    );
-                    return window.crypto.subtle.deriveKey(
-                        { name: 'PBKDF2', salt, iterations: 210000, hash: 'SHA-256' },
-                        material,
-                        { name: 'AES-GCM', length: 256 },
-                        false,
-                        ['encrypt', 'decrypt']
-                    );
-                },
-
-                createRecoveryBundle: async function(username, recoveryKey, pair) {
-                    if (!pair?.pub || !pair?.priv || !pair?.epub || !pair?.epriv) {
-                        throw new Error('The account key pair is unavailable. Sign in again and retry.');
-                    }
-                    const salt = window.crypto.getRandomValues(new Uint8Array(16));
-                    const iv = window.crypto.getRandomValues(new Uint8Array(12));
-                    const key = await this.deriveRecoveryKey(recoveryKey, salt);
-                    const plaintext = new TextEncoder().encode(JSON.stringify(pair));
-                    const ciphertext = await window.crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext);
-                    return {
-                        version: 1,
-                        username,
-                        kdf: 'PBKDF2-SHA256',
-                        iterations: 210000,
-                        cipher: 'AES-256-GCM',
-                        salt: this.toBase64(salt),
-                        iv: this.toBase64(iv),
-                        ciphertext: this.toBase64(new Uint8Array(ciphertext))
-                    };
-                },
-
-                recoverPairFromBundle: async function(bundle, recoveryKey, username) {
-                    if (!bundle || bundle.version !== 1 || bundle.username?.toLowerCase() !== username.toLowerCase() ||
-                        bundle.kdf !== 'PBKDF2-SHA256' || bundle.cipher !== 'AES-256-GCM' ||
-                        bundle.iterations !== 210000 || !bundle.salt || !bundle.iv || !bundle.ciphertext) {
-                        throw new Error('This recovery file is invalid or belongs to a different username.');
-                    }
-                    const salt = this.fromBase64(bundle.salt);
-                    const iv = this.fromBase64(bundle.iv);
-                    const ciphertext = this.fromBase64(bundle.ciphertext);
-                    const key = await this.deriveRecoveryKey(recoveryKey, salt);
-                    let pair;
-                    try {
-                        const plaintext = await window.crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
-                        pair = JSON.parse(new TextDecoder().decode(plaintext));
-                    } catch {
-                        throw new Error('The recovery key is incorrect or the recovery file is damaged.');
-                    }
-                    if (pair?.pub === undefined || typeof pair.priv !== 'string' ||
-                        typeof pair.epub !== 'string' || typeof pair.epriv !== 'string') {
-                        throw new Error('The recovery file does not contain a valid account key pair.');
-                    }
-                    return pair;
-                },
-
-                toBase64: function(bytes) {
-                    let binary = '';
-                    bytes.forEach(byte => binary += String.fromCharCode(byte));
-                    return btoa(binary);
-                },
-
-                fromBase64: function(value) {
-                    const binary = atob(value);
-                    return Uint8Array.from(binary, character => character.charCodeAt(0));
-                },
-
-                downloadRecoveryBundle: function(bundle) {
-                    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = `blocktalk-${bundle.username}-recovery.json`;
-                    link.click();
-                    setTimeout(() => URL.revokeObjectURL(url), 0);
-                },
-
-                enrollRecoveryKey: async function(username, recoveryKey, pair) {
-                    const bundle = await this.createRecoveryBundle(username, recoveryKey, pair);
-                    this.downloadRecoveryBundle(bundle);
-                    return { message: 'Encrypted recovery file downloaded. Store it separately from your recovery key.' };
-                },
 
                 authenticateWithKey: async function(username, accessKey) {
                     BlockTalk.initializeGun();
@@ -1716,57 +1619,6 @@
                             else resolve(acknowledgement);
                         });
                     });
-                },
-
-                requestPasswordRecovery: async function() {
-                    const username = document.getElementById('recoveryUsername').value.trim();
-                    const recoveryKey = document.getElementById('accountRecoveryKey').value.trim();
-                    const recoveryFile = document.getElementById('accountRecoveryFile').files[0];
-                    const status = document.getElementById('accountRecoveryStatus');
-                    status.textContent = '';
-                    if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username)) {
-                        status.textContent = 'Enter a valid BlockTalk username.';
-                        return;
-                    }
-                    if (!/^[a-zA-Z0-9]{32}$/.test(recoveryKey)) {
-                        status.textContent = 'Enter your 32-character recovery key.';
-                        return;
-                    }
-                    if (!recoveryFile) {
-                        status.textContent = 'Choose your encrypted recovery file.';
-                        return;
-                    }
-                    const button = document.getElementById('completeAccountRecovery');
-                    button.disabled = true;
-                    try {
-                        let bundle;
-                        try {
-                            bundle = JSON.parse(await recoveryFile.text());
-                        } catch {
-                            throw new Error('The recovery file must be valid JSON.');
-                        }
-                        const pair = await this.recoverPairFromBundle(bundle, recoveryKey, username);
-                        const user = BlockTalk.gun.user();
-                        BlockTalk.gunUser = user;
-                        await new Promise((resolve, reject) => {
-                            const timeout = setTimeout(() => reject(new Error('Recovery sign-in timed out. Check your connection and try again.')), 20000);
-                            user.auth(pair, acknowledgement => {
-                                clearTimeout(timeout);
-                                if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
-                                else resolve(acknowledgement);
-                            });
-                        });
-                        await BlockTalk.activateGunAccount(username, user.is || {});
-                        document.getElementById('accountRecoveryKey').value = '';
-                        document.getElementById('accountRecoveryFile').value = '';
-                        status.textContent = 'Account recovered.';
-                    } catch (error) {
-                        BlockTalk.gunUser?.leave?.();
-                        BlockTalk.gunUser = null;
-                        status.textContent = error.message;
-                    } finally {
-                        button.disabled = false;
-                    }
                 },
 
                 toggleMode: function() {
@@ -1819,11 +1671,10 @@
                         }
                         BlockTalk.gunUser = user;
                         const isNewAccount = this.isSignUpMode;
-                        const recoveryKey = isNewAccount ? BlockTalk.generateRecoveryKey() : password;
                         if (isNewAccount && await BlockTalk.lookupUserPub(username)) {
                             throw new Error('That username is already in use. Switch to Sign In and enter its access key.');
                         }
-                        const credential = isNewAccount ? recoveryKey : password;
+                        const credential = password;
                         const existingSession = user.is;
                         if (existingSession?.pub) {
                             if (existingSession.alias === username) {
@@ -1854,27 +1705,7 @@
                                 else resolve(acknowledgement);
                             }) : await this.authenticateWithKey(username, credential);
                         });
-                        let recoveryEnrollmentError = null;
-                        if (isNewAccount) {
-                            try {
-                                await this.enrollRecoveryKey(username, recoveryKey, user._?.sea);
-                            } catch (error) {
-                                recoveryEnrollmentError = error;
-                            }
-                            this.lastRecoveryKey = recoveryKey;
-                        }
                         await BlockTalk.activateGunAccount(username, authentication, isNewAccount);
-                        if (isNewAccount) {
-                            document.getElementById('authForm').reset();
-                            document.getElementById('newRecoveryKey').value = recoveryKey;
-                            document.getElementById('newRecoveryKeyPanel').classList.remove('hidden');
-                            window.alert(`Your BlockTalk access key is:\n\n${recoveryKey}\n\nSave it somewhere safe. It cannot be recovered if lost.`);
-                            if (recoveryEnrollmentError) {
-                                document.getElementById('callAlert').textContent =
-                                    `Account created, but recovery key setup could not be completed. Open Settings to retry. ${recoveryEnrollmentError.message}`;
-                            }
-                        }
-                        if (!isNewAccount) document.getElementById('authForm').reset();
                     } catch (error) {
                         const message = error?.message || String(error);
                         const target = /already|alias|username|exist/i.test(message) && this.isSignUpMode
