@@ -1620,7 +1620,13 @@
                             return false;
                         }
                         if (!handoff?.username || !handoff?.accessKey) return false;
+                        const timeout = setTimeout(() => {
+                            sessionStorage.removeItem('blocktalk:auth-handoff');
+                            console.error('The authentication handoff timed out.');
+                            window.location.replace('home.html');
+                        }, 20000);
                         user.auth(handoff.username, handoff.accessKey, acknowledgement => {
+                            clearTimeout(timeout);
                             if (acknowledgement?.err) {
                                 console.error('Could not complete the authentication handoff:', acknowledgement.err);
                                 sessionStorage.removeItem('blocktalk:auth-handoff');
@@ -1636,12 +1642,12 @@
                         });
                         return true;
                     };
+                    if (completeAuthHandoff()) return;
                     if (typeof user.recall === 'function') {
                         user.recall({}, () => {
                             const account = user.is;
                             if (this.state.isAuthenticated) return;
                             if (!account?.alias || !account?.pub) {
-                                if (completeAuthHandoff()) return;
                                 window.location.replace('home.html');
                                 return;
                             }
