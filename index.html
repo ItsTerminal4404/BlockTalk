@@ -1559,6 +1559,8 @@
                 this.state.currentUser = { username, pub };
                 this.gunProfileNode = this.gunUser.get('blocktalk').get('profile');
                 this.gunPresenceNode = this.gunUser.get('blocktalk').get('presence');
+                this.state.isAuthenticated = true;
+                this.showApp();
                 const savedProfile = await this.readGunNode(this.gunProfileNode);
                 const profile = this.createUserProfile(savedProfile || {});
                 if (isNewAccount && !profile.accountCreatedAt) profile.accountCreatedAt = Date.now();
@@ -1579,9 +1581,13 @@
                 }
                 this.installGunObservers();
                 this.startPresence();
-                this.state.isAuthenticated = true;
-                await this.refreshAndRender();
-                this.showApp();
+                try {
+                    await this.refreshAndRender();
+                } catch (error) {
+                    console.error('Could not finish loading the BlockTalk profile:', error);
+                    const status = document.querySelector('.user-status');
+                    if (status) status.textContent = 'Connected; profile sync is retrying.';
+                }
                 window.dispatchEvent(new Event('blocktalk:authenticated'));
             },
 
