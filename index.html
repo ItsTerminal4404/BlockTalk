@@ -1096,29 +1096,64 @@ body,
     --blue-bright: #d94d22;
 }
 
+.theme-blocky-dark {
+    color-scheme: dark;
+    --bg-main: #17131a;
+    --bg-panel: #241c2b;
+    --border-color: #f2c879;
+    --text-primary: #fff3d6;
+    --surface-hover: #3a2b42;
+    --surface-raised: #30233a;
+    --muted: #c0a9b9;
+    --blue: #ff8a5b;
+    --blue-bright: #ffb36b;
+}
+
 .theme-blocky,
+.theme-blocky-dark,
 .theme-blocky button,
+.theme-blocky-dark button,
 .theme-blocky input,
+.theme-blocky-dark input,
 .theme-blocky textarea,
+.theme-blocky-dark textarea,
 .theme-blocky select {
     font-family: "Trebuchet MS", Arial, sans-serif;
 }
 
+.theme-blocky-dark select {
+    font-family: "Trebuchet MS", Arial, sans-serif;
+}
+
 .theme-blocky .auth-box,
+.theme-blocky-dark .auth-box,
 .theme-blocky .sidebar,
+.theme-blocky-dark .sidebar,
 .theme-blocky .user-profile-panel,
+.theme-blocky-dark .user-profile-panel,
 .theme-blocky .nav-tabs,
+.theme-blocky-dark .nav-tabs,
 .theme-blocky .chat-header,
+.theme-blocky-dark .chat-header,
 .theme-blocky .games-stage,
+.theme-blocky-dark .games-stage,
 .theme-blocky .game-board,
+.theme-blocky-dark .game-board,
 .theme-blocky .settings-panel,
+.theme-blocky-dark .settings-panel,
 .theme-blocky .profile-panel {
     border-width: 3px;
     border-radius: 18px;
-    box-shadow: 5px 5px 0 #1d2730;
+    box-shadow: 5px 5px 0 var(--border-color);
 }
 
 .theme-blocky .sidebar {
+    margin: 10px 0 10px 10px;
+    border: 3px solid var(--border-color);
+    border-radius: 18px 0 0 18px;
+}
+
+.theme-blocky-dark .sidebar {
     margin: 10px 0 10px 10px;
     border: 3px solid var(--border-color);
     border-radius: 18px 0 0 18px;
@@ -1131,35 +1166,65 @@ body,
     border-radius: 0 18px 18px 0;
 }
 
+.theme-blocky-dark .main-chat {
+    margin: 10px 10px 10px 0;
+    border: 3px solid var(--border-color);
+    border-left: 0;
+    border-radius: 0 18px 18px 0;
+}
+
 .theme-blocky .nav-tab,
+.theme-blocky-dark .nav-tab,
 .theme-blocky .game-choice,
+.theme-blocky-dark .game-choice,
 .theme-blocky .game-action,
+.theme-blocky-dark .game-action,
 .theme-blocky .send-button,
+.theme-blocky-dark .send-button,
 .theme-blocky .call-button,
+.theme-blocky-dark .call-button,
 .theme-blocky .settings-save-button,
+.theme-blocky-dark .settings-save-button,
 .theme-blocky .settings-close-button,
+.theme-blocky-dark .settings-close-button,
 .theme-blocky .settings-input,
+.theme-blocky-dark .settings-input,
 .theme-blocky .form-input,
+.theme-blocky-dark .form-input,
 .theme-blocky .add-friend-input,
+.theme-blocky-dark .add-friend-input,
 .theme-blocky .message-input {
     border: 2px solid var(--border-color);
     border-radius: 12px;
 }
 
 .theme-blocky .nav-tab.active,
+.theme-blocky-dark .nav-tab.active,
 .theme-blocky .game-choice.active {
     background: #ffd166;
     color: var(--text-primary);
 }
 
+.theme-blocky-dark .game-choice.active {
+    background: #6e4055;
+    color: var(--text-primary);
+}
+
 .theme-blocky .my-pfp,
+.theme-blocky-dark .my-pfp,
 .theme-blocky .profile-picture-large,
+.theme-blocky-dark .profile-picture-large,
 .theme-blocky .voice-avatar-bubble {
     border: 3px solid var(--border-color);
     border-radius: 22%;
 }
 
 .theme-blocky .message-content {
+    border: 2px solid var(--border-color);
+    border-radius: 14px;
+}
+
+.theme-blocky-dark .message-content {
     border: 2px solid var(--border-color);
     border-radius: 14px;
 }
@@ -3239,7 +3304,8 @@ body,
             <p class="settings-help">Choose how BlockTalk looks on this device. Your choice is saved to your profile. Secure &amp; Incognito is a visual theme, not a substitute for safe browsing or account security.</p>
             <select class="settings-input" id="settings-theme">
                 <option value="terminal">Original Terminal</option>
-                <option value="blocky">Blocky &amp; Bubbly</option>
+                <option value="blocky">Blocky &amp; Bubbly · Light</option>
+                <option value="blocky-dark">Blocky &amp; Bubbly · Dark</option>
                 <option value="incognito">Secure &amp; Incognito</option>
             </select>
             <section class="settings-account-section" aria-labelledby="settings-audio-title">
@@ -8610,6 +8676,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const board = document.getElementById('gameBoard');
         const choices = [...document.querySelectorAll('.game-choice')];
         if (!board || !choices.length) return;
+        const gameSounds = [
+            new Audio('mixkit-hard-pop-click-2364.wav'),
+            new Audio('mixkit-long-pop-2358.wav')
+        ];
+        let nextGameSound = 0;
+        gameSounds.forEach(sound => { sound.preload = 'auto'; });
+        board.addEventListener('click', event => {
+            const button = event.target.closest('button');
+            if (!button || /reset|new game|shuffle again/i.test(button.textContent)) return;
+            const sound = gameSounds[nextGameSound];
+            nextGameSound = (nextGameSound + 1) % gameSounds.length;
+            sound.currentTime = 0;
+            sound.play().catch(error => {
+                console.warn('BlockTalk could not play the game sound:', error);
+            });
+        });
         let activeGame = 'pop';
         let tapTimer = 0;
         let tapInterval = 0;
@@ -10747,10 +10829,10 @@ document.addEventListener('DOMContentLoaded', () => {
         return (parts[0] || '?').slice(0, 2).toUpperCase();
     }
 
-    const themeClassNames = ['theme-terminal', 'theme-blocky', 'theme-incognito', 'theme-cyberpunk', 'theme-light'];
+    const themeClassNames = ['theme-terminal', 'theme-blocky', 'theme-blocky-dark', 'theme-incognito', 'theme-cyberpunk', 'theme-light'];
 
     function applyTheme(theme) {
-        const selectedTheme = ['terminal', 'blocky', 'incognito', 'cyberpunk', 'light'].includes(theme) ? theme : 'terminal';
+        const selectedTheme = ['terminal', 'blocky', 'blocky-dark', 'incognito', 'cyberpunk', 'light'].includes(theme) ? theme : 'terminal';
         document.body.classList.remove(...themeClassNames);
         document.body.classList.add(`theme-${selectedTheme}`);
         return selectedTheme;
@@ -12227,6 +12309,7 @@ document.addEventListener('DOMContentLoaded', () => {
         app.directMessageReady = false;
         clearIncomingCalls();
         stopCallRingtone();
+        settingsModal.classList.add('hidden');
         document.getElementById('profileModal').classList.add('hidden');
         const result = await originalLogout.apply(this, args);
         syncCallView();

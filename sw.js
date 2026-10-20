@@ -1,4 +1,4 @@
-const CACHE_NAME = 'blocktalk-shell-v26';
+const CACHE_NAME = 'blocktalk-shell-v27';
 const BASE_URL = new URL('./', self.registration.scope);
 const SHELL_ASSETS = [
     '',
@@ -10,6 +10,8 @@ const SHELL_ASSETS = [
     'BlockTalk_Message_Sent.wav',
     'Message_Recived_BlockTalk.wav',
     'BlockTalk Ringtone.mp3',
+    'mixkit-hard-pop-click-2364.wav',
+    'mixkit-long-pop-2358.wav',
     'manifest.json',
     'icons/blocktalk.svg'
 ].map(asset => new URL(asset, BASE_URL).toString());

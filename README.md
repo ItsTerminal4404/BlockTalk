@@ -19,9 +19,9 @@ Installable PWA features and microphone access require HTTPS in production
 (localhost is allowed for local development).
 
 The interface theme can be changed in Settings between the original Terminal
-look, a rounded **Blocky & Bubbly** look, and a low-contrast **Secure &
-Incognito** look. These are visual preferences only; the incognito theme does
-not change network, account, or privacy behavior.
+look, light or dark rounded **Blocky & Bubbly** looks, and a low-contrast
+**Secure & Incognito** look. These are visual preferences only; the incognito
+theme does not change network, account, or privacy behavior.
 
 ## Minecraft skin and cape editor
 
@@ -52,8 +52,9 @@ Only the compressed square crop is stored in the public profile.
 The **Games** tab contains ten small browser games for quiet downtime during a
 voice call. Pop Its, Color Ring Sort, Quick Tap, Memory Match, and Higher or
 Lower are solo games. Tic-Tac-Toe, Connect Four, Reaction Duel, Dots & Boxes,
-and Nim Duel are two-player pass-and-play games. Game state stays in the
-current page and is not sent to Gun or shared with other users.
+and Nim Duel are two-player pass-and-play games. Game interactions alternate
+between two local pop sound effects; game state and sounds stay in the current
+page and are not sent to Gun or shared with other users.
 
 Gun identities are separate from the former Node-server accounts. Existing
 server accounts are not migrated; users must create a new Gun account. Sign-up
