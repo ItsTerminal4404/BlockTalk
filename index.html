@@ -3728,7 +3728,10 @@ body,
                     this.initializeGun();
                     const user = this.gunUser;
                     if (typeof user.recall === 'function') {
-                        user.recall({}, () => {
+                        let recallCompleted = false;
+                        const finishRecall = () => {
+                            if (recallCompleted) return;
+                            recallCompleted = true;
                             const account = user.is;
                             if (this.state.isAuthenticated) return;
                             if (!account?.alias || !account?.pub) {
@@ -3739,7 +3742,9 @@ body,
                                 console.error('Could not restore the BlockTalk session:', error);
                                 this.showAuth();
                             });
-                        });
+                        };
+                        user.recall({ sessionStorage: true }, finishRecall);
+                        setTimeout(finishRecall, 1500);
                     } else {
                         this.showAuth();
                     }
