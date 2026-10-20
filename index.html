@@ -227,15 +227,32 @@
 
         .nav-tabs {
             display: flex;
+            flex: 0 0 auto;
+            gap: 4px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            overscroll-behavior-x: contain;
+            scrollbar-width: thin;
             border-bottom: 1px solid #202225;
             background-color: #2f3136;
             padding: 0 8px;
         }
 
+        .nav-tabs::-webkit-scrollbar {
+            height: 5px;
+        }
+
+        .nav-tabs::-webkit-scrollbar-thumb {
+            background: #5865f2;
+            border-radius: 999px;
+        }
+
         .nav-tab {
-            flex: 1;
+            flex: 0 0 auto;
+            min-width: 92px;
             padding: 12px 8px;
             text-align: center;
+            white-space: nowrap;
             font-size: 12px;
             font-weight: 600;
             color: #72767d;
@@ -3103,7 +3120,7 @@ body,
                 <button class="nav-tab" data-tab="friends">Friends</button>
                 <button class="nav-tab" data-tab="servers">Servers</button>
                 <button class="nav-tab" data-tab="games">Games</button>
-                <button class="nav-tab" data-tab="editor">Skin Editor</button>
+                <button class="nav-tab" data-tab="editor" title="Minecraft skin and cape editor">Skin &amp; Cape Editor</button>
             </div>
 
             <!-- FRIENDS PANEL -->
@@ -4669,8 +4686,9 @@ body,
                 tab.addEventListener('click', (e) => {
                     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
                     e.target.classList.add('active');
+                            e.target.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
 
-                    const tabName = e.target.dataset.tab;
+                            const tabName = e.target.dataset.tab;
                     document.getElementById('friendsPanel').classList.remove('active');
                     document.getElementById('dmPanel').classList.remove('active');
                     document.getElementById('serversPanel').classList.remove('active');
