@@ -42,9 +42,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const MAX_VOICE_DATA_URL_LENGTH = 260000;
     const OWNER_USERNAME = 'itsterminal4404';
     const FOUNDER_BADGE_CUTOFF = Date.UTC(2027, 0, 1);
-    const messageSentAudio = new Audio('/BlockTalk_Message_Sent.wav');
-    const messageReceivedAudio = new Audio('/Message_Recived_BlockTalk.wav');
-    const callRingtoneAudio = new Audio('/BlockTalk%20Ringtone.mp3');
+    const assetUrl = asset => new URL(asset, document.baseURI).toString();
+    const messageSentAudio = new Audio(assetUrl('BlockTalk_Message_Sent.wav'));
+    const messageReceivedAudio = new Audio(assetUrl('Message_Recived_BlockTalk.wav'));
+    const callRingtoneAudio = new Audio(assetUrl('BlockTalk Ringtone.mp3'));
     const AUDIO_PREFERENCES_KEY = 'blocktalk:audio-preferences-v1';
     const defaultAudioPreferences = {
         sentMessageSound: true,

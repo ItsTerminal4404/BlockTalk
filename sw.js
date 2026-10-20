@@ -1,18 +1,19 @@
-const CACHE_NAME = 'blocktalk-shell-v25';
+const CACHE_NAME = 'blocktalk-shell-v26';
+const BASE_URL = new URL('./', self.registration.scope);
 const SHELL_ASSETS = [
-    '/',
-    '/index.html',
-    '/jokes.js',
-    '/app.js',
-    '/style.css',
-    '/logo.png',
-    '/BlockTalk_Message_Sent.wav',
-    '/Message_Recived_BlockTalk.wav',
-    '/BlockTalk%20Ringtone.mp3',
-    '/manifest.json',
-    '/icons/blocktalk.svg'
-];
-const CACHEABLE_PATHS = new Set(SHELL_ASSETS);
+    '',
+    'index.html',
+    'jokes.js',
+    'app.js',
+    'style.css',
+    'logo.png',
+    'BlockTalk_Message_Sent.wav',
+    'Message_Recived_BlockTalk.wav',
+    'BlockTalk Ringtone.mp3',
+    'manifest.json',
+    'icons/blocktalk.svg'
+].map(asset => new URL(asset, BASE_URL).toString());
+const CACHEABLE_PATHS = new Set(SHELL_ASSETS.map(asset => new URL(asset).pathname));
 
 self.addEventListener('install', event => {
     event.waitUntil(
@@ -44,7 +45,7 @@ self.addEventListener('fetch', event => {
             try {
                 return await fetch(request);
             } catch (error) {
-                const cachedPage = await caches.match('/index.html');
+                const cachedPage = await caches.match(new URL('index.html', BASE_URL).toString());
                 if (cachedPage) return cachedPage;
                 throw error;
             }
