@@ -3995,6 +3995,9 @@ body,
                             throw new Error('That username is already in use. Switch to Sign In and enter its access key.');
                         }
                         const credential = isNewAccount ? BlockTalk.generateAccessKey() : password;
+                        if (isNewAccount) {
+                            BlockTalk.showSignupAccessKey(username, credential, 'Creating your account… Copy this key now while setup continues.');
+                        }
                         const existingSession = user.is;
                         if (existingSession?.pub) {
                             if (existingSession.alias === username) {
@@ -4031,7 +4034,6 @@ body,
                             authentication = await this.authenticateWithKey(username, credential);
                         }
                         await BlockTalk.activateGunAccount(username, authentication, isNewAccount);
-                        if (isNewAccount) showSignupAccessKey(username, credential);
                     } catch (error) {
                         const message = error?.message || String(error);
                         if (BlockTalk.state.isAuthenticated) BlockTalk.showAuth();
@@ -9455,11 +9457,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function showSignupAccessKey(username, accessKey) {
+    function showSignupAccessKey(username, accessKey, statusMessage = '') {
         pendingSignupAccessKey = accessKey;
         saveAccountAccessKey(username, accessKey);
         signupAccessKey.textContent = accessKey;
-        signupAccessKeyStatus.textContent = '';
+        signupAccessKeyStatus.textContent = statusMessage;
         accessKeyModal.classList.remove('hidden');
         document.getElementById('signup-access-key-copy').focus();
     }
@@ -9468,6 +9470,8 @@ document.addEventListener('DOMContentLoaded', () => {
         pendingSignupAccessKey = '';
         accessKeyModal.classList.add('hidden');
     }
+
+    app.showSignupAccessKey = showSignupAccessKey;
 
     function showSavedAccessKey() {
         const username = app.state.currentUser?.username;
