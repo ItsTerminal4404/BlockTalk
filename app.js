@@ -599,8 +599,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const pendingRemoteIceCandidates = new Map();
     const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
     const gunRelays = [
-        'https://gun.rig.airfaas.com/gun',
-        'https://peer.ooo/gun'
+        'wss://relay.peer.ooo/gun',
+        'https://relay.peer.ooo/gun',
+        'https://peer.wallie.io/gun'
     ];
     const pendingMessageStorageKey = 'pending-messages';
     let pendingMessageFlush = null;

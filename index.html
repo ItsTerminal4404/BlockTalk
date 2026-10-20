@@ -3566,8 +3566,9 @@ body,
                 if (typeof window.Gun !== 'function') throw new Error('GunDB did not load. Refresh and try again.');
                 this.gun = window.Gun({
                     peers: [
-                        'https://gun.rig.airfaas.com/gun',
-                        'https://peer.ooo/gun'
+                        'wss://relay.peer.ooo/gun',
+                        'https://relay.peer.ooo/gun',
+                        'https://peer.wallie.io/gun'
                     ],
                     axe: false
                 });
@@ -3614,14 +3615,30 @@ body,
             lookupUserPub: async function(username) {
                 if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(username)) return null;
                 if (this.knownUserPubs.has(username)) return this.knownUserPubs.get(username);
-                const record = await this.readGunNode(this.gun.get(`~@${username}`));
-                const pub = record && Object.keys(record).find(key =>
-                    key.startsWith('~') && !key.startsWith('~@') && key.length > 2
-                );
-                if (!pub) return null;
-                const normalizedPub = pub.slice(1);
-                this.knownUserPubs.set(username, normalizedPub);
-                return normalizedPub;
+                const aliasNode = this.gun.get(`~@${username}`);
+                let lastError = null;
+                for (const delay of [0, 500, 1500]) {
+                    if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+                    let record;
+                    try {
+                        record = await this.readGunNode(aliasNode);
+                    } catch (error) {
+                        lastError = error;
+                        continue;
+                    }
+                    const pub = record && Object.keys(record).find(key =>
+                        /^~[^~@].{2,}$/.test(key) ||
+                        (record[key] && typeof record[key] === 'object' &&
+                            typeof record[key]['#'] === 'string' &&
+                            /^~[^~@].{2,}$/.test(record[key]['#']))
+                    );
+                    if (!pub) continue;
+                    const normalizedPub = (pub.startsWith('~') ? pub : record[pub]['#']).slice(1);
+                    this.knownUserPubs.set(username, normalizedPub);
+                    return normalizedPub;
+                }
+                if (lastError) throw lastError;
+                return null;
             },
 
             readProfileByPub: async function(pub) {
@@ -9305,8 +9322,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const pendingRemoteIceCandidates = new Map();
     const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
     const gunRelays = [
-        'https://gun.rig.airfaas.com/gun',
-        'https://peer.ooo/gun'
+        'wss://relay.peer.ooo/gun',
+        'https://relay.peer.ooo/gun',
+        'https://peer.wallie.io/gun'
     ];
     const pendingMessageStorageKey = 'pending-messages';
     let pendingMessageFlush = null;
