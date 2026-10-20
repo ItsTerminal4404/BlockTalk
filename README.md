@@ -23,6 +23,12 @@ look, light or dark rounded **Blocky & Bubbly** looks, and a low-contrast
 **Secure & Incognito** look. These are visual preferences only; the incognito
 theme does not change network, account, or privacy behavior.
 
+After signup, the generated 32-character access key appears in an in-app
+window with **Copy now** and **Later** choices. The key can also be revealed
+and copied from Account Settings on that device. It is stored in that
+browser's localStorage to support the later option; keep the device profile
+trusted and save another secure backup.
+
 ## Minecraft skin and cape editor
 
 The authenticated **Skin Editor** tab includes a client-only pixel editor for
