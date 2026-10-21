@@ -3377,6 +3377,8 @@ body,
             <label class="settings-label" for="settings-bio">Bio (visible on your public profile)</label>
             <textarea class="settings-input settings-bio-input" id="settings-bio" maxlength="500"
                 placeholder="Tell people a little about yourself" rows="4"></textarea>
+            <label class="settings-label" for="settings-email">Email (optional, saved for account recovery later)</label>
+            <input class="settings-input" id="settings-email" type="email" placeholder="you@example.com" maxlength="254" autocomplete="email">
             <label class="settings-label" for="settings-pfp-file">Or choose / drop an image</label>
             <label class="profile-picture-dropzone" id="profilePictureDropzone" for="settings-pfp-file">
                 <span id="profilePictureDropzoneText">Drop a picture here or browse (PNG/JPEG/WebP, up to 10 MB)</span>
@@ -3794,13 +3796,14 @@ body,
             handleFriendEvent: async function(eventId, envelope) {
                 const me = this.state.currentUser;
                 const payload = envelope?.payload;
-                if (!me || !payload || typeof eventId !== 'string' || payload.id !== eventId ||
+                const effectiveEventId = typeof eventId === 'string' ? eventId : payload?.id;
+                if (!me || !payload || typeof effectiveEventId !== 'string' || payload.id !== effectiveEventId ||
                     payload.toPub !== me.pub || payload.to !== me.username ||
                     !['request', 'accept', 'decline', 'cancel', 'unfriend', 'block'].includes(payload.action) ||
                     typeof payload.from !== 'string' || payload.from === me.username ||
                     typeof payload.fromPub !== 'string' || !Number.isFinite(payload.timestamp) ||
                     payload.timestamp > Date.now() + 60000 || Date.now() - payload.timestamp > 365 * 86400000 ||
-                    this.processedFriendEvents.has(eventId)) return;
+                    this.processedFriendEvents.has(effectiveEventId)) return;
                 const signedFields = {
                     id: payload.id,
                     action: payload.action,
@@ -3848,7 +3851,7 @@ body,
                     profile.pendingFriendRequests.incoming = removeName(profile.pendingFriendRequests.incoming);
                     profile.pendingFriendRequests.outgoing = removeName(profile.pendingFriendRequests.outgoing);
                 }
-                this.processedFriendEvents.add(eventId);
+                this.processedFriendEvents.add(effectiveEventId);
                 await this.saveOwnProfile(profile);
                 await this.refreshAndRender();
             },
@@ -4117,8 +4120,10 @@ body,
                         .filter(([key]) => key !== '_' && key !== '#')
                         .map(([key, entry]) => entry === true ? decodeURIComponent(key) : entry);
                 };
+                const email = typeof profile.email === 'string' ? profile.email.trim().toLowerCase() : '';
                 return {
                     bio: typeof profile.bio === 'string' ? profile.bio.slice(0, 500) : '',
+                    email: email.length <= 254 ? email : email.slice(0, 254),
                     profilePictureUrl: typeof profile.profilePictureUrl === 'string' ? profile.profilePictureUrl : '',
                     accountCreatedAt: Number.isFinite(profile.accountCreatedAt) ? profile.accountCreatedAt : 0,
                     theme: ['terminal', 'blocky', 'incognito', 'cyberpunk', 'light'].includes(profile.theme) ? profile.theme : 'terminal',
@@ -4145,6 +4150,7 @@ body,
                 const normalized = this.createUserProfile(profile);
                 return {
                     bio: normalized.bio,
+                    email: normalized.email,
                     profilePictureUrl: normalized.profilePictureUrl,
                     accountCreatedAt: normalized.accountCreatedAt,
                     theme: normalized.theme,
@@ -10026,9 +10032,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function publishQueuedMessage(entry) {
+        const messageId = entry.packet.id || window.crypto.randomUUID();
+        entry.packet.id = messageId;
         return new Promise((resolve, reject) => {
             const timeout = setTimeout(() => reject(new Error('Gun did not acknowledge the queued message.')), 15000);
-            gun.get(entry.roomId).get('messages').set(entry.packet, acknowledgement => {
+            gun.get(entry.roomId).get('messages').get(messageId).put(entry.packet, acknowledgement => {
                 clearTimeout(timeout);
                 if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
                 else resolve();
@@ -10134,6 +10142,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const generation = gunObserverGeneration;
         try {
             const packet = {
+                id: window.crypto.randomUUID(),
                 sender,
                 message: await encryptDirectMessage(text, key, sender, timestamp),
                 timestamp
@@ -10154,7 +10163,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 await new Promise((resolve, reject) => {
                     const timeout = setTimeout(() => reject(new Error('The Gun relays did not confirm the message.')), 15000);
-                    room.set(packet, acknowledgement => {
+                    room.get(packet.id).put(packet, acknowledgement => {
                         clearTimeout(timeout);
                         if (acknowledgement?.err) reject(new Error('The message could not be saved to the Gun relays.'));
                         else resolve();
@@ -10166,6 +10175,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('direct-message-key-status').textContent =
                     'Gun did not confirm the encrypted message. It is saved on this device and will retry when online.';
                 return;
+            }
+            const messages = app.directMessageCache[peerId];
+            if (!messages.some(message => message.id === packet.id)) {
+                const decoded = decodeMessageContent(text);
+                messages.push({
+                    id: packet.id,
+                    sender,
+                    content: decoded.content,
+                    attachment: decoded.attachment,
+                    timestamp,
+                    status: 'sent'
+                });
+                messages.sort((left, right) => left.timestamp - right.timestamp);
+                app.state.messages[peerId] = messages;
+                app.renderMessages();
+                app.renderDMList();
             }
             document.getElementById('messageInput').value = '';
             playMessageSound(messageSentAudio, 'message sent', audioPreferences.sentMessageSound);
@@ -10900,6 +10925,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         const packet = {
+            id: window.crypto.randomUUID(),
             sender: app.state.currentUser.username,
             senderPub: pair.pub,
             timestamp: Date.now()
@@ -10922,7 +10948,7 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 await new Promise((resolve, reject) => {
                     const timeout = setTimeout(() => reject(new Error('The Gun relay did not confirm the server message.')), 15000);
-                    gun.get(server.id).get('messages').set(packet, acknowledgement => {
+                    gun.get(server.id).get('messages').get(packet.id).put(packet, acknowledgement => {
                         clearTimeout(timeout);
                         if (acknowledgement?.err) reject(new Error(`Gun relay error: ${String(acknowledgement.err)}`));
                         else resolve();
@@ -10938,6 +10964,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     setMediaStatus(`The server relay did not accept the message (${error.message}); it could not be queued: ${queueError.message}`);
                     return;
                 }
+            }
+            const messages = app.state.messages[`server:${server.id}`];
+            if (!messages.some(message => message.id === packet.id)) {
+                const decoded = decodeMessageContent(plaintext);
+                messages.push({
+                    id: packet.id,
+                    sender: packet.sender,
+                    content: decoded.content,
+                    attachment: decoded.attachment,
+                    timestamp: packet.timestamp,
+                    status: 'sent'
+                });
+                messages.sort((left, right) => left.timestamp - right.timestamp);
+                if (messages.length > MAX_RENDERED_SERVER_MESSAGES) {
+                    messages.splice(0, messages.length - MAX_RENDERED_SERVER_MESSAGES);
+                }
+                app.renderMessages();
             }
             if (activeServer?.id === server.id) setMediaStatus('');
             document.getElementById('messageInput').value = '';
@@ -11094,6 +11137,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const isEmbeddedPicture = /^data:image\/(webp|jpeg|png);base64,/.test(profile.profilePictureUrl);
         settingsPfpUrl.value = isEmbeddedPicture ? '' : profile.profilePictureUrl || '';
         document.getElementById('settings-bio').value = profile.bio;
+        document.getElementById('settings-email').value = profile.email || '';
         pendingProfilePictureDataUrl = isEmbeddedPicture ? profile.profilePictureUrl : '';
         profilePictureCropState?.bitmap?.close?.();
         profilePictureCropState = null;
@@ -11155,12 +11199,17 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const theme = applyTheme(settingsTheme.value);
             const bio = document.getElementById('settings-bio').value.trim();
+            const email = document.getElementById('settings-email').value.trim();
             if (bio.length > 500) {
                 settingsStatus.textContent = 'Bios must be 500 characters or fewer.';
                 return;
             }
+            if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                settingsStatus.textContent = 'Enter a valid email address or leave it blank.';
+                return;
+            }
             saveAudioPreferences();
-            await app.updateProfile({ bio, profilePictureUrl, theme });
+            await app.updateProfile({ bio, email, profilePictureUrl, theme });
             profilePictureCropState?.bitmap?.close?.();
             profilePictureCropState = null;
             document.getElementById('profilePictureCrop').classList.add('hidden');
