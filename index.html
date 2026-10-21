@@ -3622,23 +3622,21 @@ body,
                 if (this.knownUserPubs.has(username)) return this.knownUserPubs.get(username);
                 const aliasNode = this.gun.get(`~@${username}`);
                 let lastError = null;
-                for (const delay of [0, 500, 1500]) {
+                for (const delay of [0, 500, 1500, 3000, 6000]) {
                     if (delay) await new Promise(resolve => setTimeout(resolve, delay));
                     let record;
                     try {
-                        record = await this.readGunNode(aliasNode);
+                        record = await this.readGunNode(aliasNode, 5000);
                     } catch (error) {
                         lastError = error;
                         continue;
                     }
-                    const pub = record && Object.keys(record).find(key =>
-                        /^~[^~@].{2,}$/.test(key) ||
-                        (record[key] && typeof record[key] === 'object' &&
-                            typeof record[key]['#'] === 'string' &&
-                            /^~[^~@].{2,}$/.test(record[key]['#']))
-                    );
-                    if (!pub) continue;
-                    const normalizedPub = (pub.startsWith('~') ? pub : record[pub]['#']).slice(1);
+                    const linkedPub = record && Object.entries(record).flatMap(([key, value]) => [
+                        key,
+                        value && typeof value === 'object' ? value['#'] : ''
+                    ]).find(value => typeof value === 'string' && /^~[^~@].{2,}$/.test(value));
+                    if (!linkedPub) continue;
+                    const normalizedPub = linkedPub.slice(1);
                     this.knownUserPubs.set(username, normalizedPub);
                     return normalizedPub;
                 }
@@ -4191,6 +4189,10 @@ body,
             friends: {
                 runAction: async function(action, targetUsername) {
                     try {
+                        if (!/^[a-zA-Z0-9_.-]{3,32}$/.test(targetUsername) ||
+                            targetUsername === BlockTalk.state.currentUser?.username) {
+                            throw new Error('Enter another registered username.');
+                        }
                         const me = BlockTalk.state.currentUser.username;
                         const myProfile = BlockTalk.createUserProfile(
                             BlockTalk.getUserProfile(BlockTalk.database, me)
@@ -4206,9 +4208,9 @@ body,
                         const outgoing = myProfile.pendingFriendRequests.outgoing.includes(targetUsername);
                         if (action === 'request') {
                             if (hasFriend || outgoing || incoming) throw new Error('You are already friends or have a pending request.');
+                            await BlockTalk.publishFriendEvent('request', targetUsername, targetPub);
                             myProfile.pendingFriendRequests.outgoing.push(targetUsername);
                             await BlockTalk.saveOwnProfile(myProfile);
-                            await BlockTalk.publishFriendEvent('request', targetUsername, targetPub);
                         } else if (action === 'accept') {
                             if (!incoming) throw new Error('That friend request is no longer pending.');
                             myProfile.pendingFriendRequests.incoming = myProfile.pendingFriendRequests.incoming.filter(name => name !== targetUsername);
