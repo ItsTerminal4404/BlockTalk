@@ -3971,17 +3971,31 @@ body,
                 isSubmitting: false,
 
                 authenticateWithKey: async function(username, accessKey) {
-                    BlockTalk.initializeGun();
-                    const user = BlockTalk.gun.user();
-                    BlockTalk.gunUser = user;
-                    return new Promise((resolve, reject) => {
-                        const timeout = setTimeout(() => reject(new Error('Key sign-in timed out. Check your connection and try again.')), 20000);
-                        user.auth(username, accessKey, acknowledgement => {
-                            clearTimeout(timeout);
-                            if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
-                            else resolve(acknowledgement);
-                        });
-                    });
+                    let lastError = null;
+                    for (const delay of [0, 800, 1800]) {
+                        if (delay) await new Promise(resolve => setTimeout(resolve, delay));
+                        BlockTalk.initializeGun();
+                        const user = BlockTalk.gun.user();
+                        BlockTalk.gunUser = user;
+                        try {
+                            const acknowledgement = await new Promise((resolve, reject) => {
+                                const timeout = setTimeout(() => reject(new Error('Key sign-in timed out. Check your connection and try again.')), 12000);
+                                user.auth(username, accessKey, result => {
+                                    clearTimeout(timeout);
+                                    if (result?.err) reject(new Error(String(result.err)));
+                                    else resolve(result);
+                                });
+                            });
+                            if (user.is?.alias !== username || typeof user.is?.pub !== 'string') {
+                                throw new Error('Gun did not verify the requested username and access key together.');
+                            }
+                            return acknowledgement;
+                        } catch (error) {
+                            lastError = error;
+                            user.leave?.();
+                        }
+                    }
+                    throw lastError || new Error('The access key could not be verified.');
                 },
 
                 toggleMode: function() {
@@ -4031,8 +4045,8 @@ body,
                         }
                         BlockTalk.gunUser = user;
                         const isNewAccount = this.isSignUpMode;
-                        if (isNewAccount && await BlockTalk.lookupUserPub(username)) {
-                            throw new Error('That username is already in use. Switch to Sign In and enter its access key.');
+                        if (isNewAccount && username.toLowerCase() === 'itsterminal4404') {
+                            throw new Error('That username is reserved and cannot be claimed.');
                         }
                         const credential = isNewAccount ? BlockTalk.generateAccessKey() : password;
                         if (isNewAccount) {
@@ -4060,19 +4074,7 @@ body,
                                 });
                             });
                         }
-                        let authentication;
-                        if (isNewAccount) {
-                            authentication = await new Promise((resolve, reject) => {
-                                const timeout = setTimeout(() => reject(new Error('Gun sign-in timed out. Check the relay connection and try again.')), 20000);
-                                user.auth(username, credential, acknowledgement => {
-                                    clearTimeout(timeout);
-                                    if (acknowledgement?.err) reject(new Error(String(acknowledgement.err)));
-                                    else resolve(acknowledgement);
-                                });
-                            });
-                        } else {
-                            authentication = await this.authenticateWithKey(username, credential);
-                        }
+                        const authentication = await this.authenticateWithKey(username, credential);
                         await BlockTalk.activateGunAccount(username, authentication, isNewAccount);
                         if (typeof BlockTalk.saveAccountAccessKey === 'function') {
                             BlockTalk.saveAccountAccessKey(username, credential);
